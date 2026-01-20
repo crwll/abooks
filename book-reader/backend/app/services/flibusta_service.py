@@ -85,7 +85,7 @@ class FlibustaService:
                 
                 print(f"Trying to search on: {url}")
                 
-                response = session.get(search_url, params=params, timeout=30)
+                response = session.get(search_url, params=params, timeout=60)
                 response.raise_for_status()
                 
                 # Парсим HTML
@@ -124,7 +124,7 @@ class FlibustaService:
                 download_url = f"{url}/b/{book_id}/{format}"
                 print(f"Trying to download from: {download_url}")
                 
-                response = session.get(download_url, timeout=30)
+                response = session.get(download_url, timeout=60)
                 response.raise_for_status()
                 
                 # Проверяем что получили
