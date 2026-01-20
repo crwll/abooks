@@ -21,6 +21,12 @@ class Settings(BaseSettings):
     tor_proxy_port: int = 9050
     flibusta_url: str = "https://flibusta.is"
     
+    # HTTP Proxy для Flibusta
+    http_proxy_host: Optional[str] = None
+    http_proxy_port: Optional[int] = None
+    http_proxy_user: Optional[str] = None
+    http_proxy_password: Optional[str] = None
+    
     class Config:
         env_file = ".env"
         case_sensitive = False

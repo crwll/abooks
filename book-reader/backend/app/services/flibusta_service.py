@@ -25,8 +25,25 @@ class FlibustaService:
             'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
         })
         
+        # Если настроен HTTP прокси, используем его
+        if hasattr(settings, 'http_proxy_host') and settings.http_proxy_host:
+            try:
+                # Формируем URL прокси с авторизацией
+                if settings.http_proxy_user and settings.http_proxy_password:
+                    proxy_url = f"http://{settings.http_proxy_user}:{settings.http_proxy_password}@{settings.http_proxy_host}:{settings.http_proxy_port}"
+                else:
+                    proxy_url = f"http://{settings.http_proxy_host}:{settings.http_proxy_port}"
+                
+                self.session.proxies = {
+                    'http': proxy_url,
+                    'https': proxy_url
+                }
+                print(f"Using HTTP proxy: {settings.http_proxy_host}:{settings.http_proxy_port}")
+            except Exception as e:
+                print(f"Error setting up HTTP proxy: {e}")
+                self.session.proxies = {}
         # Если используется .onion адрес, настраиваем Tor прокси
-        if '.onion' in self.base_url:
+        elif '.onion' in self.base_url:
             try:
                 tor_proxy = f"socks5h://{settings.tor_proxy_host}:{settings.tor_proxy_port}"
                 self.session.proxies = {
@@ -59,12 +76,8 @@ class FlibustaService:
         
         for url in urls_to_try:
             try:
-                # Если это .onion, используем Tor прокси
-                session = self.session if '.onion' in url else requests.Session()
-                if '.onion' not in url:
-                    session.headers.update({
-                        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
-                    })
+                # Используем настроенную сессию с прокси
+                session = self.session
                 
                 # Используем веб-поиск вместо OPDS
                 search_url = f"{url}/booksearch"
@@ -105,12 +118,8 @@ class FlibustaService:
         
         for url in urls_to_try:
             try:
-                # Если это .onion, используем Tor прокси
-                session = self.session if '.onion' in url else requests.Session()
-                if '.onion' not in url:
-                    session.headers.update({
-                        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
-                    })
+                # Используем настроенную сессию с прокси
+                session = self.session
                 
                 download_url = f"{url}/b/{book_id}/{format}"
                 print(f"Trying to download from: {download_url}")
