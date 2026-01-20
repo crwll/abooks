@@ -1,9 +1,10 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { ArrowLeft, Heart, ChevronLeft, ChevronRight, Sun, Moon } from 'lucide-react';
+import { ArrowLeft, Heart, ChevronLeft, ChevronRight, Sun, Moon, Zap } from 'lucide-react';
 import { getTheme } from '../../utils/theme';
 import { getBooksService } from '../../services/books';
 import api from '../../services/api';
+import SpritzReader from '../spritz/SpritzReader';
 
 const Reader = ({ darkMode, setDarkMode }) => {
   const theme = getTheme(darkMode);
@@ -12,306 +13,364 @@ const Reader = ({ darkMode, setDarkMode }) => {
   
   const [showControls, setShowControls] = useState(true);
   const [book, setBook] = useState(null);
-  const [content, setContent] = useState(null);
-  const [currentChapter, setCurrentChapter] = useState(0);
-  const [fontSize, setFontSize] = useState(17);
+  const [fullContent, setFullContent] = useState(''); 
+  const [chaptersInfo, setChaptersInfo] = useState([]); // Инфо о главах (название, индекс)
+  const [currentChapterTitle, setCurrentChapterTitle] = useState('');
+  const [currentPage, setCurrentPage] = useState(0);
+  const [totalPages, setTotalPages] = useState(1);
+  const [fontSize, setFontSize] = useState(18);
   const [favorite, setFavorite] = useState(false);
   const [loading, setLoading] = useState(true);
 
+  // Spritz states
+  const [spritzMode, setSpritzMode] = useState(false);
+  const [rawChapters, setRawChapters] = useState([]);
+  const [currentChapterIndex, setCurrentChapterIndex] = useState(0);
+  const [showSpritzEndModal, setShowSpritzEndModal] = useState(false);
+  
+  const contentRef = useRef(null);
+
+  // Загрузка книги и всего контента
   useEffect(() => {
-    loadBook();
+    const loadData = async () => {
+      try {
+        setLoading(true);
+        const [bookData, contentData] = await Promise.all([
+          getBooksService.getById(bookId),
+          getBooksService.getContent(bookId)
+        ]);
+        
+        setBook(bookData);
+        
+        if (contentData?.chapters) {
+           setRawChapters(contentData.chapters);
+           let fullText = '';
+           const info = [];
+           contentData.chapters.forEach((ch, idx) => {
+               const chapterId = `chapter-${idx}`;
+               info.push({ id: chapterId, title: ch.title, index: idx });
+
+               // Параграфы
+               const paragraphs = ch.content
+                   .split('\n\n')
+                   .filter(p => p.trim())
+                   .map(p => `<p style="margin-bottom: 0.8em; text-align: justify; text-indent: 1.5em;">${p.trim()}</p>`)
+                   .join('');
+
+               // break-before: column гарантирует начало с новой колонки (страницы)
+               // Важно: мы УБРАЛИ display: inline-block и break-inside: avoid-column,
+               // так как они блокировали разбивку текста главы на колонки.
+               // break-after: avoid у заголовка привязывает его к первому абзацу.
+               fullText += `
+                 <div id="${chapterId}" class="chapter" style="break-before: column; margin-bottom: 20vh;">
+                    <h3 style="font-size: 1.4em; font-weight: bold; margin-bottom: 1em; margin-top: 1em; color: inherit; text-align: center; break-after: avoid;">${ch.title}</h3>
+                    ${paragraphs}
+                 </div>
+               `;
+           });
+           setFullContent(fullText);
+           setChaptersInfo(info);
+        }
+
+      } catch (error) {
+        console.error('Error loading:', error);
+      } finally {
+        setLoading(false);
+      }
+    };
+    loadData();
   }, [bookId]);
 
+  // Расчет страниц и определение текущей главы
   useEffect(() => {
-    if (book) {
-      loadContent(currentChapter);
-    }
-  }, [currentChapter, book]);
+    const timer = setTimeout(calculatePages, 150);
+    const handleResize = () => calculatePages();
+    window.addEventListener('resize', handleResize);
+    return () => {
+        clearTimeout(timer);
+        window.removeEventListener('resize', handleResize);
+    };
+  }, [fullContent, fontSize]);
 
-  const loadBook = async () => {
-    try {
-      const userBookData = await getBooksService.getById(bookId);
-      setBook(userBookData);
-      // Загружаем с сохраненной позиции
-      const savedChapter = Math.floor((userBookData.current_position || 0) / 1000);
-      setCurrentChapter(savedChapter);
-    } catch (error) {
-      console.error('Error loading book:', error);
-    }
-  };
+  // Обновление заголовка главы при смене страницы
+  useEffect(() => {
+      findCurrentChapter();
+  }, [currentPage, chaptersInfo, totalPages]);
 
-  const loadContent = async (chapter) => {
-    try {
-      setLoading(true);
-      const contentData = await getBooksService.getContent(bookId, chapter);
-      setContent(contentData);
-    } catch (error) {
-      console.error('Error loading content:', error);
-    } finally {
-      setLoading(false);
-    }
-  };
+  // Восстановление позиции
+  useEffect(() => {
+      if (book && totalPages > 1 && currentPage === 0 && book.progress_percent > 0) {
+          const page = Math.floor((book.progress_percent / 100) * totalPages);
+          setCurrentPage(Math.min(page, totalPages - 1));
+      }
+  }, [book, totalPages]);
 
-  const updatePosition = async (chapter) => {
-    if (!book) return;
-    
-    const position = chapter * 1000;
-    const progress = ((chapter + 1) / (content?.total_chapters || 1)) * 100;
-    
-    try {
-      // book.id - это user_book_id, а не book_id
-      await api.put(`/api/user-books/${book.id}/position`, {
-        current_position: position,
-        progress_percent: Math.min(progress, 100)
-      });
-      console.log('Position updated:', { chapter, position, progress: Math.min(progress, 100) });
-    } catch (error) {
-      console.error('Error updating position:', error);
+  const calculatePages = () => {
+    if (contentRef.current) {
+        const scrollW = contentRef.current.scrollWidth;
+        const screenW = window.innerWidth;
+        const pages = Math.ceil(scrollW / screenW);
+        setTotalPages(Math.max(1, pages));
+        setCurrentPage(curr => Math.min(curr, Math.max(0, pages - 1)));
     }
   };
 
-  const handleChapterChange = (newChapter) => {
-    if (newChapter >= 0 && newChapter < (content?.total_chapters || 0)) {
-      setCurrentChapter(newChapter);
-      updatePosition(newChapter);
+  const findCurrentChapter = () => {
+      if (!contentRef.current || !chaptersInfo.length) return;
+      
+      const currentScrollX = currentPage * window.innerWidth;
+      let foundTitle = chaptersInfo[0].title;
+      let foundIndex = 0;
+      
+      for (const ch of chaptersInfo) {
+          const el = document.getElementById(ch.id);
+          if (el) {
+              if (el.offsetLeft <= currentScrollX + 50) { 
+                  foundTitle = ch.title;
+                  foundIndex = ch.index;
+              }
+          }
+      }
+      setCurrentChapterTitle(foundTitle);
+      setCurrentChapterIndex(foundIndex);
+  };
+  
+  const handleSpritzComplete = () => {
+    setShowSpritzEndModal(true);
+  };
+
+  const handleNextChapterSpritz = () => {
+    const nextIndex = currentChapterIndex + 1;
+    if (nextIndex < rawChapters.length) {
+        setCurrentChapterIndex(nextIndex);
+        setShowSpritzEndModal(false);
+        
+        // Sync reader position to the new chapter
+        const nextChapterInfo = chaptersInfo.find(ch => ch.index === nextIndex);
+        if (nextChapterInfo) {
+            const el = document.getElementById(nextChapterInfo.id);
+            if (el) {
+                const page = Math.round(el.offsetLeft / window.innerWidth);
+                setCurrentPage(page);
+                updatePosition(page);
+            }
+        }
+    } else {
+        setSpritzMode(false);
+        setShowSpritzEndModal(false);
     }
   };
 
+  const updatePosition = async (page) => {
+      if (!book) return;
+      const progress = (page / totalPages) * 100;
+      try {
+          await api.put(`/api/user-books/${book.id}/position`, {
+              current_position: page,
+              progress_percent: progress
+          });
+      } catch (err) { console.error(err); }
+  };
+
+  const changePage = (newPage) => {
+      const p = Math.max(0, Math.min(newPage, totalPages - 1));
+      setCurrentPage(p);
+      updatePosition(p);
+      if (showControls) setShowControls(false);
+  };
+  
   const changeFontSize = (delta) => {
-    setFontSize(prev => Math.max(14, Math.min(24, prev + delta)));
+      setFontSize(prev => Math.max(14, Math.min(32, prev + delta)));
   };
 
-  if (loading && !content) {
-    return (
-      <div style={{ minHeight: '100vh', background: theme.bg, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-        <p style={{ color: theme.textSecondary }}>Загрузка...</p>
-      </div>
-    );
+  if (loading) {
+     return <div style={{ height: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: theme.bg, color: theme.textSecondary }}>Загрузка...</div>;
   }
-
-  const currentChapterData = content?.chapters?.[currentChapter];
 
   return (
     <div 
-      style={{ minHeight: '100vh', background: theme.bg }}
+      style={{ 
+        height: '100vh', 
+        width: '100vw', 
+        background: theme.bg, 
+        overflow: 'hidden',
+        position: 'relative'
+      }}
       onClick={() => setShowControls(!showControls)}
     >
       {/* Header */}
-      <div
-        style={{
-          position: 'fixed',
-          top: 0,
-          left: 0,
-          right: 0,
-          background: theme.bg,
-          padding: '16px',
-          display: 'flex',
-          justifyContent: 'space-between',
-          alignItems: 'center',
-          zIndex: 10,
+      <div style={{
+          position: 'fixed', top: 0, left: 0, right: 0,
+          padding: '16px', background: theme.bg,
+          display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+          zIndex: 50,
           transform: showControls ? 'translateY(0)' : 'translateY(-100%)',
           transition: 'transform 0.3s ease',
-        }}
-      >
-        <button
-          onClick={(e) => { e.stopPropagation(); navigate('/'); }}
-          style={{
-            width: '44px',
-            height: '44px',
-            borderRadius: '9999px',
-            background: theme.surface2,
-            border: 'none',
-            cursor: 'pointer',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-          }}
-        >
-          <ArrowLeft size={20} color={theme.textPrimary} />
-        </button>
-        <div style={{ textAlign: 'center', flex: 1, padding: '0 12px' }}>
-          <p style={{ fontSize: '15px', fontWeight: '600', color: theme.textPrimary, margin: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-            {book?.book?.title || 'Книга'}
-          </p>
-          <p style={{ fontSize: '12px', color: theme.textTertiary, margin: '4px 0 0 0' }}>
-            {currentChapterData?.title || `Глава ${currentChapter + 1}`}
-          </p>
-        </div>
-        <button
-          onClick={(e) => { e.stopPropagation(); setFavorite(!favorite); }}
-          style={{
-            width: '44px',
-            height: '44px',
-            borderRadius: '9999px',
-            background: theme.surface2,
-            border: 'none',
-            cursor: 'pointer',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-          }}
-        >
-          <Heart
-            size={20}
-            color={favorite ? theme.error : theme.textPrimary}
-            fill={favorite ? theme.error : 'none'}
-          />
-        </button>
+          boxShadow: '0 2px 8px rgba(0,0,0,0.1)'
+      }}>
+          <button onClick={(e) => { e.stopPropagation(); navigate('/'); }} style={{ background: theme.surface2, border: 'none', borderRadius: '50%', width: 40, height: 40, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}>
+             <ArrowLeft size={20} color={theme.textPrimary} />
+          </button>
+          
+          <div style={{ flex: 1, textAlign: 'center', padding: '0 12px' }}>
+              <div style={{ fontWeight: 'bold', color: theme.textPrimary, fontSize: '14px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                  {book?.book?.title}
+              </div>
+              <div style={{ fontSize: '12px', color: theme.textTertiary, marginTop: '2px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                  {currentChapterTitle}
+              </div>
+          </div>
+          
+          <button onClick={(e) => { e.stopPropagation(); setFavorite(!favorite); }} style={{ background: theme.surface2, border: 'none', borderRadius: '50%', width: 40, height: 40, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}>
+             <Heart size={20} color={favorite ? theme.error : theme.textPrimary} fill={favorite ? theme.error : 'none'} />
+          </button>
       </div>
 
       {/* Font Controls */}
-      <div
-        style={{
-          position: 'fixed',
-          top: '76px',
-          left: 0,
-          right: 0,
-          padding: '12px 16px',
-          display: 'flex',
-          justifyContent: 'center',
-          alignItems: 'center',
-          gap: '12px',
-          background: theme.bg,
-          zIndex: 10,
+      <div style={{
+          position: 'fixed', top: '80px', left: 0, right: 0,
+          display: 'flex', justifyContent: 'center', gap: '12px',
+          zIndex: 49,
           transform: showControls ? 'translateY(0)' : 'translateY(-200%)',
-          transition: 'transform 0.3s ease',
-        }}
-      >
-        <button
-          onClick={(e) => { e.stopPropagation(); changeFontSize(-2); }}
-          style={{
-            padding: '8px 16px',
-            borderRadius: '9999px',
-            background: theme.surface2,
-            border: 'none',
-            cursor: 'pointer',
-            fontSize: '14px',
-            color: theme.textPrimary,
-          }}
-        >
-          A-
-        </button>
-        <span style={{ fontSize: '13px', color: theme.textSecondary, minWidth: '36px', textAlign: 'center' }}>
-          {fontSize}
-        </span>
-        <button
-          onClick={(e) => { e.stopPropagation(); changeFontSize(2); }}
-          style={{
-            padding: '8px 16px',
-            borderRadius: '9999px',
-            background: theme.surface2,
-            border: 'none',
-            cursor: 'pointer',
-            fontSize: '14px',
-            color: theme.textPrimary,
-          }}
-        >
-          A+
-        </button>
-        <div style={{ width: '1px', height: '20px', background: theme.divider }} />
-        <button
-          onClick={(e) => { e.stopPropagation(); setDarkMode(!darkMode); }}
-          style={{
-            padding: '8px 12px',
-            borderRadius: '9999px',
-            background: theme.surface2,
-            border: 'none',
-            cursor: 'pointer',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-          }}
-        >
-          {darkMode ? <Sun size={18} color={theme.textPrimary} /> : <Moon size={18} color={theme.textPrimary} />}
-        </button>
+          opacity: showControls ? 1 : 0,
+          pointerEvents: showControls ? 'auto' : 'none',
+          transition: 'transform 0.3s ease, opacity 0.2s ease'
+      }}>
+          <div style={{ background: theme.surface1, padding: '8px 16px', borderRadius: '24px', display: 'flex', gap: '16px', alignItems: 'center', boxShadow: '0 4px 12px rgba(0,0,0,0.15)' }} onClick={e => e.stopPropagation()}>
+              <button onClick={() => changeFontSize(-1)} style={{ background: 'none', border: 'none', fontSize: '18px', cursor: 'pointer', color: theme.textPrimary }}>A-</button>
+              <span style={{ fontSize: '14px', color: theme.textSecondary, minWidth: '24px', textAlign: 'center' }}>{fontSize}</span>
+              <button onClick={() => changeFontSize(1)} style={{ background: 'none', border: 'none', fontSize: '22px', cursor: 'pointer', color: theme.textPrimary }}>A+</button>
+              <div style={{ width: 1, height: 20, background: theme.divider }}></div>
+              <button onClick={() => setSpritzMode(!spritzMode)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: theme.textPrimary }}>
+                  <Zap size={20} />
+              </button>
+              <div style={{ width: 1, height: 20, background: theme.divider }}></div>
+              <button onClick={() => setDarkMode(!darkMode)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: theme.textPrimary }}>
+                  {darkMode ? <Sun size={20} /> : <Moon size={20} />}
+              </button>
+          </div>
       </div>
 
-      {/* Content */}
-      <div style={{ padding: '140px 16px 120px', maxWidth: '680px', margin: '0 auto' }}>
-        <h2
-          style={{
-            fontSize: 'clamp(20px, 5vw, 24px)',
-            fontWeight: '600',
-            color: theme.textPrimary,
-            letterSpacing: '-0.01em',
-            margin: '0 0 8px 0',
-          }}
-        >
-          {currentChapterData?.title || `Глава ${currentChapter + 1}`}
-        </h2>
-        <div
-          style={{
-            fontSize: `${fontSize}px`,
-            lineHeight: '1.8',
-            color: theme.textPrimary,
-            whiteSpace: 'pre-wrap',
-          }}
-        >
-          {currentChapterData?.content || 'Загрузка...'}
-        </div>
-      </div>
-
-      {/* Navigation */}
-      <div
-        style={{
-          position: 'fixed',
-          bottom: 0,
+      {/* Content Area */}
+      <div style={{ 
+          position: 'absolute',
+          top: '70px', 
+          bottom: '70px',
           left: 0,
           right: 0,
-          background: theme.surface1,
-          padding: '12px 16px',
-          paddingBottom: 'calc(12px + env(safe-area-inset-bottom, 20px))',
-          display: 'flex',
-          justifyContent: 'space-between',
-          alignItems: 'center',
+          overflow: 'hidden' 
+      }}>
+          <div 
+             ref={contentRef}
+             style={{
+                 height: '100%',
+                 width: '100%',
+                 columnWidth: 'calc(100vw - 32px)', 
+                 columnGap: '32px',
+                 columnFill: 'auto',
+                 fontSize: `${fontSize}px`,
+                 lineHeight: '1.6',
+                 textAlign: 'justify',
+                 color: theme.textPrimary,
+                 transform: `translateX(calc(-${currentPage} * 100vw))`,
+                 transition: 'transform 0.3s cubic-bezier(0.25, 1, 0.5, 1)',
+                 padding: '0 16px',
+                 boxSizing: 'border-box'
+             }}
+             dangerouslySetInnerHTML={{ __html: fullContent }}
+          />
+      </div>
+
+      {/* Click Zones */}
+      <div style={{ position: 'absolute', top: 70, bottom: 70, left: 0, width: '30%', zIndex: 10 }} onClick={(e) => { e.stopPropagation(); changePage(currentPage - 1); }} />
+      <div style={{ position: 'absolute', top: 70, bottom: 70, right: 0, width: '30%', zIndex: 10 }} onClick={(e) => { e.stopPropagation(); changePage(currentPage + 1); }} />
+
+      {/* Footer */}
+      <div style={{
+          position: 'fixed', bottom: 0, left: 0, right: 0,
+          padding: '16px', background: theme.bg,
+          display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+          zIndex: 50,
           transform: showControls ? 'translateY(0)' : 'translateY(100%)',
           transition: 'transform 0.3s ease',
-        }}
-      >
-        <button
-          onClick={(e) => { e.stopPropagation(); handleChapterChange(currentChapter - 1); }}
-          disabled={currentChapter === 0}
-          style={{
-            padding: '12px 16px',
-            borderRadius: '9999px',
-            background: currentChapter === 0 ? theme.surface2 : theme.accent,
-            border: 'none',
-            cursor: currentChapter === 0 ? 'default' : 'pointer',
-            fontSize: '14px',
-            fontWeight: '600',
-            color: currentChapter === 0 ? theme.textTertiary : '#000',
-            display: 'flex',
-            alignItems: 'center',
-            gap: '6px',
-            opacity: currentChapter === 0 ? 0.5 : 1,
-          }}
-        >
-          <ChevronLeft size={18} />
-        </button>
-        <span style={{ fontSize: '13px', color: theme.textSecondary }}>
-          {currentChapter + 1} / {content?.total_chapters || 1}
-        </span>
-        <button
-          onClick={(e) => { e.stopPropagation(); handleChapterChange(currentChapter + 1); }}
-          disabled={currentChapter >= (content?.total_chapters || 1) - 1}
-          style={{
-            padding: '12px 16px',
-            borderRadius: '9999px',
-            background: currentChapter >= (content?.total_chapters || 1) - 1 ? theme.surface2 : theme.accent,
-            border: 'none',
-            cursor: currentChapter >= (content?.total_chapters || 1) - 1 ? 'default' : 'pointer',
-            fontSize: '14px',
-            fontWeight: '600',
-            color: currentChapter >= (content?.total_chapters || 1) - 1 ? theme.textTertiary : '#000',
-            display: 'flex',
-            alignItems: 'center',
-            gap: '6px',
-            opacity: currentChapter >= (content?.total_chapters || 1) - 1 ? 0.5 : 1,
-          }}
-        >
-          <ChevronRight size={18} />
-        </button>
+          boxShadow: '0 -2px 8px rgba(0,0,0,0.1)'
+      }}>
+          <button 
+             onClick={(e) => { e.stopPropagation(); changePage(currentPage - 1); }}
+             disabled={currentPage === 0}
+             style={{ 
+                 background: theme.surface2, border: 'none', borderRadius: '50%', width: 44, height: 44, 
+                 display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer',
+                 opacity: currentPage === 0 ? 0.5 : 1
+             }}
+          >
+              <ChevronLeft size={24} color={theme.textPrimary} />
+          </button>
+          
+          <div style={{ textAlign: 'center' }}>
+              <div style={{ fontSize: '14px', fontWeight: 'bold', color: theme.textPrimary }}>
+                  {currentPage + 1} / {totalPages}
+              </div>
+              <div style={{ fontSize: '11px', color: theme.textSecondary, marginTop: '2px' }}>
+                  {Math.round(((currentPage + 1) / totalPages) * 100)}%
+              </div>
+          </div>
+          
+          <button 
+             onClick={(e) => { e.stopPropagation(); changePage(currentPage + 1); }}
+             disabled={currentPage >= totalPages - 1}
+             style={{ 
+                 background: theme.surface2, border: 'none', borderRadius: '50%', width: 44, height: 44, 
+                 display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer',
+                 opacity: currentPage >= totalPages - 1 ? 0.5 : 1
+             }}
+          >
+              <ChevronRight size={24} color={theme.textPrimary} />
+          </button>
       </div>
+
+      {/* Spritz Reader Overlay */}
+      {spritzMode && rawChapters.length > 0 && (
+          <SpritzReader
+              content={rawChapters[currentChapterIndex]?.content || ''}
+              title={rawChapters[currentChapterIndex]?.title || ''}
+              darkMode={darkMode}
+              onComplete={handleSpritzComplete}
+              onClose={() => setSpritzMode(false)}
+              key={currentChapterIndex} 
+          />
+      )}
+
+      {/* Spritz End Chapter Modal */}
+      {showSpritzEndModal && (
+          <div style={{
+              position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
+              background: 'rgba(0,0,0,0.8)', zIndex: 200,
+              display: 'flex', alignItems: 'center', justifyContent: 'center'
+          }}>
+              <div style={{
+                  background: theme.surface1, padding: '24px', borderRadius: '12px',
+                  maxWidth: '300px', textAlign: 'center', color: theme.textPrimary
+              }}>
+                  <h3 style={{ marginBottom: '16px' }}>Глава прочитана</h3>
+                  <p style={{ marginBottom: '24px', color: theme.textSecondary }}>Перейти к следующей главе?</p>
+                  <div style={{ display: 'flex', gap: '12px', justifyContent: 'center' }}>
+                      <button onClick={() => { setSpritzMode(false); setShowSpritzEndModal(false); }} style={{
+                          padding: '8px 16px', borderRadius: '8px', border: `1px solid ${theme.divider}`,
+                          background: 'transparent', color: theme.textPrimary, cursor: 'pointer'
+                      }}>
+                          Выход
+                      </button>
+                      <button onClick={handleNextChapterSpritz} style={{
+                          padding: '8px 16px', borderRadius: '8px', border: 'none',
+                          background: theme.accent, color: '#fff', cursor: 'pointer'
+                      }}>
+                          Далее
+                      </button>
+                  </div>
+              </div>
+          </div>
+      )}
     </div>
   );
 };
