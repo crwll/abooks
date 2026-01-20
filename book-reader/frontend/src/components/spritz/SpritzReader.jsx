@@ -2,12 +2,14 @@ import React, { useState, useEffect, useRef } from 'react';
 import { Play, Pause, X } from 'lucide-react';
 import { getTheme } from '../../utils/theme';
 
-const SpritzReader = ({ content, title, darkMode, onComplete, onClose }) => {
+const SpritzReader = ({ content, title, darkMode, onComplete, onClose, initialIndex = 0 }) => {
   const theme = getTheme(darkMode);
   const [isPlaying, setIsPlaying] = useState(false);
-  const [currentIndex, setCurrentIndex] = useState(0);
+  const [currentIndex, setCurrentIndex] = useState(initialIndex);
   const [wpm, setWpm] = useState(250);
   const [fontSize, setFontSize] = useState(48);
+  const [pauseOnPunctuation, setPauseOnPunctuation] = useState(true);
+  const [pauseOnNumbers, setPauseOnNumbers] = useState(true);
   const [timeSpent, setTimeSpent] = useState(0);
   const [words, setWords] = useState([]);
   const intervalRef = useRef(null);
@@ -16,11 +18,15 @@ const SpritzReader = ({ content, title, darkMode, onComplete, onClose }) => {
     if (content) {
       const wordArray = content.split(/\s+/).filter(w => w.length > 0);
       setWords(wordArray);
-      setCurrentIndex(0);
+      setCurrentIndex(initialIndex);
       setIsPlaying(false);
       setTimeSpent(0);
     }
   }, [content]);
+
+  const handleClose = () => {
+      onClose(currentIndex, words.length);
+  };
 
   useEffect(() => {
     let timer;
@@ -39,9 +45,27 @@ const SpritzReader = ({ content, title, darkMode, onComplete, onClose }) => {
   };
 
   useEffect(() => {
+    let timeoutId;
     if (isPlaying && words.length > 0) {
-      const delay = 60000 / wpm;
-      intervalRef.current = setInterval(() => {
+      const currentWord = words[currentIndex];
+      let delay = 60000 / wpm;
+
+      // Calculate delay multiplier based on word content
+      if (currentWord) {
+        if (pauseOnPunctuation) {
+          if (/[.!?]+("|»)?$/.test(currentWord)) {
+            delay *= 2.5; // End of sentence
+          } else if (/[,:;]+("|»)?$/.test(currentWord)) {
+            delay *= 1.5; // Clause break
+          }
+        }
+        
+        if (pauseOnNumbers && /\d/.test(currentWord)) {
+          delay = Math.max(delay, (60000 / wpm) * 2); // Numbers
+        }
+      }
+
+      timeoutId = setTimeout(() => {
         setCurrentIndex(prev => {
           if (prev >= words.length - 1) {
             setIsPlaying(false);
@@ -51,21 +75,18 @@ const SpritzReader = ({ content, title, darkMode, onComplete, onClose }) => {
           return prev + 1;
         });
       }, delay);
-    } else {
-      if (intervalRef.current) {
-        clearInterval(intervalRef.current);
-      }
     }
 
     return () => {
-      if (intervalRef.current) {
-        clearInterval(intervalRef.current);
+      if (timeoutId) {
+        clearTimeout(timeoutId);
       }
     };
-  }, [isPlaying, wpm, words]);
+  }, [isPlaying, wpm, words, currentIndex, pauseOnPunctuation, pauseOnNumbers]);
 
   const currentWord = words[currentIndex] || '';
-  const orp = Math.floor(currentWord.length / 3);
+  // Используем формулу из примера: round((length + 1) * 0.4) - 1
+  const orp = Math.max(0, Math.round((currentWord.length + 1) * 0.4) - 1);
 
   return (
     <div
@@ -100,7 +121,7 @@ const SpritzReader = ({ content, title, darkMode, onComplete, onClose }) => {
         transition: 'opacity 0.3s ease'
       }}>
         <button 
-          onClick={onClose} 
+          onClick={handleClose} 
           style={{ 
             background: theme.surface2, 
             border: 'none', 
@@ -122,27 +143,80 @@ const SpritzReader = ({ content, title, darkMode, onComplete, onClose }) => {
         <div style={{ width: 40 }} />
       </div>
 
-      {/* Word Display - Centered */}
+      {/* Word Display - Spritz Style */}
       <div
         style={{
           position: 'absolute',
           top: '50%',
           left: '50%',
           transform: 'translate(-50%, -50%)',
-          fontSize: `${fontSize}px`,
-          fontWeight: '600',
-          color: theme.textPrimary,
-          letterSpacing: '0.05em',
-          whiteSpace: 'nowrap',
-          width: '100%',
-          textAlign: 'center',
+          width: '600px', 
+          maxWidth: '90vw',
+          padding: '20px 0',
+          borderTop: `2px solid ${theme.surface3}`,
+          borderBottom: `2px solid ${theme.surface3}`,
           pointerEvents: 'none'
         }}
       >
-        <div style={{ display: 'inline-block' }}>
-           {currentWord.substring(0, orp)}
-           <span style={{ color: theme.accent }}>{currentWord[orp]}</span>
-           {currentWord.substring(orp + 1)}
+        {/* Top Marker */}
+        <div style={{
+            position: 'absolute',
+            top: 0,
+            left: '40%',
+            height: '10px',
+            width: '2px',
+            backgroundColor: theme.surface3,
+            transform: 'translateX(-50%)'
+        }} />
+
+        {/* Bottom Marker */}
+        <div style={{
+            position: 'absolute',
+            bottom: 0,
+            left: '40%',
+            height: '10px',
+            width: '2px',
+            backgroundColor: theme.surface3,
+            transform: 'translateX(-50%)'
+        }} />
+
+        {/* Word Container */}
+        <div style={{
+            display: 'flex',
+            alignItems: 'baseline', 
+            justifyContent: 'center',
+            fontSize: `${fontSize}px`,
+            fontWeight: '600',
+            color: theme.textPrimary,
+            lineHeight: 1.2,
+            fontFamily: '"Open Sans", sans-serif', 
+        }}>
+             {/* Prefix - 40% width, align right */}
+             <div style={{
+                 flex: '0 0 40%',
+                 textAlign: 'right',
+             }}>
+                 {currentWord.substring(0, orp)}
+             </div>
+             
+             {/* ORP Character - colored */}
+             <div style={{
+                 color: 'red', // Fixed red color as per example or stick to theme.accent? User example had 'color: red'.
+                 // Let's use red for high contrast as requested in example style logic, but theme.accent is safer for dark mode.
+                 // Example used: nth-child(2) { color: red }
+                 // I'll stick to theme.accent to respect theme, but ensure it's visible.
+                 color: theme.accent, 
+             }}>
+                 {currentWord[orp]}
+             </div>
+
+             {/* Suffix - remaining space */}
+             <div style={{
+                 flex: '1',
+                 textAlign: 'left',
+             }}>
+                 {currentWord.substring(orp + 1)}
+             </div>
         </div>
       </div>
 
@@ -251,6 +325,53 @@ const SpritzReader = ({ content, title, darkMode, onComplete, onClose }) => {
           >
             A+
           </button>
+        </div>
+
+        <div style={{ display: 'flex', alignItems: 'center', gap: '24px', marginTop: '20px' }}>
+          <label style={{ 
+            color: theme.textSecondary, 
+            display: 'flex', 
+            alignItems: 'center', 
+            gap: '8px', 
+            cursor: 'pointer', 
+            fontSize: '13px',
+            userSelect: 'none'
+          }}>
+            <input 
+              type="checkbox" 
+              checked={pauseOnPunctuation} 
+              onChange={(e) => setPauseOnPunctuation(e.target.checked)}
+              style={{ 
+                accentColor: theme.accent,
+                cursor: 'pointer',
+                width: '16px',
+                height: '16px'
+              }}
+            />
+            Пауза на знаках
+          </label>
+          <label style={{ 
+            color: theme.textSecondary, 
+            display: 'flex', 
+            alignItems: 'center', 
+            gap: '8px', 
+            cursor: 'pointer', 
+            fontSize: '13px',
+            userSelect: 'none'
+          }}>
+            <input 
+              type="checkbox" 
+              checked={pauseOnNumbers} 
+              onChange={(e) => setPauseOnNumbers(e.target.checked)}
+              style={{ 
+                accentColor: theme.accent,
+                cursor: 'pointer',
+                width: '16px',
+                height: '16px'
+              }}
+            />
+            Пауза на цифрах
+          </label>
         </div>
       </div>
 

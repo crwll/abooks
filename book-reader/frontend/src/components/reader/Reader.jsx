@@ -27,6 +27,7 @@ const Reader = ({ darkMode, setDarkMode }) => {
   const [rawChapters, setRawChapters] = useState([]);
   const [currentChapterIndex, setCurrentChapterIndex] = useState(0);
   const [showSpritzEndModal, setShowSpritzEndModal] = useState(false);
+  const [spritzInitialIndex, setSpritzInitialIndex] = useState(0);
   
   const contentRef = useRef(null);
   const currentAnchorRef = useRef(null);
@@ -177,6 +178,93 @@ const Reader = ({ darkMode, setDarkMode }) => {
       setCurrentChapterIndex(foundIndex);
   };
   
+  const handleSpritzClose = (lastIndex, totalWords) => {
+      setSpritzMode(false);
+      
+      const currentChapter = rawChapters[currentChapterIndex];
+      const chapterInfo = chaptersInfo.find(c => c.index === currentChapterIndex);
+      
+      if (currentChapter && chapterInfo && lastIndex > 0) {
+          // Split into paragraphs exactly as we did for rendering
+          const paragraphs = currentChapter.content.split('\n\n').filter(p => p.trim());
+          
+          let wordCount = 0;
+          let targetParagraphIndex = paragraphs.length > 0 ? paragraphs.length - 1 : 0;
+          
+          for (let i = 0; i < paragraphs.length; i++) {
+              // Same split logic as SpritzReader
+              const pWords = paragraphs[i].split(/\s+/).filter(w => w.length > 0).length;
+              if (wordCount + pWords > lastIndex) {
+                  targetParagraphIndex = i;
+                  break;
+              }
+              wordCount += pWords;
+          }
+          
+          // Find the element
+          const paragraphId = `${chapterInfo.id}-p-${targetParagraphIndex}`;
+          const el = document.getElementById(paragraphId);
+          
+          if (el) {
+              const newPage = Math.floor(el.offsetLeft / window.innerWidth);
+              changePage(newPage);
+          }
+      }
+  };
+
+  const startSpritz = () => {
+      let startIndex = 0;
+      const selection = window.getSelection();
+      
+      if (selection && selection.toString().trim().length > 0) {
+          const selectedText = selection.toString().trim();
+          const currentContent = rawChapters[currentChapterIndex]?.content || '';
+          
+          // Try to find the selection in the content
+          // This is a simple search, it might find the first occurrence
+          // Ideally we would use more context or DOM mapping
+          const idx = currentContent.indexOf(selectedText);
+          if (idx !== -1) {
+              // Count words before the selection
+              const textBefore = currentContent.substring(0, idx);
+              const wordsBefore = textBefore.split(/\s+/).filter(w => w.length > 0).length;
+              startIndex = wordsBefore;
+          }
+      } else {
+           // Try to find start index based on the visible element (anchor)
+           const currentChapter = rawChapters[currentChapterIndex];
+           if (currentChapter && currentAnchorRef.current) {
+               const anchorId = currentAnchorRef.current;
+               
+               // Check if anchor is in current chapter
+               if (anchorId.startsWith(`chapter-${currentChapterIndex}-`)) {
+                   if (anchorId.includes('-title')) {
+                       startIndex = 0;
+                   } else if (anchorId.includes('-p-')) {
+                       // Extract paragraph index
+                       const parts = anchorId.split('-p-');
+                       if (parts.length === 2) {
+                           const pIdx = parseInt(parts[1], 10);
+                           
+                           // Sum words of all previous paragraphs
+                           const paragraphs = currentChapter.content.split('\n\n').filter(p => p.trim());
+                           let wordsCount = 0;
+                           
+                           for (let i = 0; i < pIdx && i < paragraphs.length; i++) {
+                               const pWords = paragraphs[i].split(/\s+/).filter(w => w.length > 0).length;
+                               wordsCount += pWords;
+                           }
+                           startIndex = wordsCount;
+                       }
+                   }
+               }
+           }
+      }
+
+      setSpritzInitialIndex(startIndex);
+      setSpritzMode(true);
+  };
+
   const handleSpritzComplete = () => {
     setShowSpritzEndModal(true);
   };
@@ -285,7 +373,7 @@ const Reader = ({ darkMode, setDarkMode }) => {
               <span style={{ fontSize: '14px', color: theme.textSecondary, minWidth: '24px', textAlign: 'center' }}>{fontSize}</span>
               <button onClick={() => changeFontSize(1)} style={{ background: 'none', border: 'none', fontSize: '22px', cursor: 'pointer', color: theme.textPrimary }}>A+</button>
               <div style={{ width: 1, height: 20, background: theme.divider }}></div>
-              <button onClick={() => setSpritzMode(!spritzMode)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: theme.textPrimary }}>
+              <button onClick={() => startSpritz()} style={{ background: 'none', border: 'none', cursor: 'pointer', color: theme.textPrimary }}>
                   <Zap size={20} />
               </button>
               <div style={{ width: 1, height: 20, background: theme.divider }}></div>
@@ -380,8 +468,9 @@ const Reader = ({ darkMode, setDarkMode }) => {
               title={rawChapters[currentChapterIndex]?.title || ''}
               darkMode={darkMode}
               onComplete={handleSpritzComplete}
-              onClose={() => setSpritzMode(false)}
-              key={currentChapterIndex} 
+              onClose={handleSpritzClose}
+              initialIndex={spritzInitialIndex}
+              key={`${currentChapterIndex}-${spritzInitialIndex}`} 
           />
       )}
 
