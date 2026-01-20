@@ -29,6 +29,7 @@ const Reader = ({ darkMode, setDarkMode }) => {
   const [showSpritzEndModal, setShowSpritzEndModal] = useState(false);
   
   const contentRef = useRef(null);
+  const currentAnchorRef = useRef(null);
 
   // Загрузка книги и всего контента
   useEffect(() => {
@@ -50,20 +51,18 @@ const Reader = ({ darkMode, setDarkMode }) => {
                const chapterId = `chapter-${idx}`;
                info.push({ id: chapterId, title: ch.title, index: idx });
 
-               // Параграфы
+               // Параграфы с ID для отслеживания позиции
                const paragraphs = ch.content
                    .split('\n\n')
                    .filter(p => p.trim())
-                   .map(p => `<p style="margin-bottom: 0.8em; text-align: justify; text-indent: 1.5em;">${p.trim()}</p>`)
+                   .map((p, pIdx) => `<p id="${chapterId}-p-${pIdx}" class="reader-paragraph" style="margin-bottom: 0.8em; text-align: justify; text-indent: 1.5em;">${p.trim()}</p>`)
                    .join('');
 
                // break-before: column гарантирует начало с новой колонки (страницы)
-               // Важно: мы УБРАЛИ display: inline-block и break-inside: avoid-column,
-               // так как они блокировали разбивку текста главы на колонки.
-               // break-after: avoid у заголовка привязывает его к первому абзацу.
+               // Добавляем ID и класс к заголовку для отслеживания
                fullText += `
                  <div id="${chapterId}" class="chapter" style="break-before: column; margin-bottom: 20vh;">
-                    <h3 style="font-size: 1.4em; font-weight: bold; margin-bottom: 1em; margin-top: 1em; color: inherit; text-align: center; break-after: avoid;">${ch.title}</h3>
+                    <h3 id="${chapterId}-title" class="reader-header" style="font-size: 1.4em; font-weight: bold; margin-bottom: 1em; margin-top: 1em; color: inherit; text-align: center; break-after: avoid;">${ch.title}</h3>
                     ${paragraphs}
                  </div>
                `;
@@ -81,7 +80,7 @@ const Reader = ({ darkMode, setDarkMode }) => {
     loadData();
   }, [bookId]);
 
-  // Расчет страниц и определение текущей главы
+  // Расчет страниц и восстановление позиции
   useEffect(() => {
     const timer = setTimeout(calculatePages, 150);
     const handleResize = () => calculatePages();
@@ -92,12 +91,19 @@ const Reader = ({ darkMode, setDarkMode }) => {
     };
   }, [fullContent, fontSize]);
 
+  // Обновляем "якорь" (видимый элемент) при смене страницы
+  useEffect(() => {
+      // Ждем окончания анимации перехода (300мс) + небольшой буфер
+      const timer = setTimeout(updateAnchor, 350);
+      return () => clearTimeout(timer);
+  }, [currentPage]);
+
   // Обновление заголовка главы при смене страницы
   useEffect(() => {
       findCurrentChapter();
   }, [currentPage, chaptersInfo, totalPages]);
 
-  // Восстановление позиции
+  // Восстановление позиции при первой загрузке
   useEffect(() => {
       if (book && totalPages > 1 && currentPage === 0 && book.progress_percent > 0) {
           const page = Math.floor((book.progress_percent / 100) * totalPages);
@@ -105,13 +111,49 @@ const Reader = ({ darkMode, setDarkMode }) => {
       }
   }, [book, totalPages]);
 
+  const updateAnchor = () => {
+      // Ищем элемент в центре экрана
+      const x = window.innerWidth / 2;
+      const y = window.innerHeight / 2;
+      const el = document.elementFromPoint(x, y);
+      
+      if (el) {
+          // Ищем ближайший параграф или заголовок с ID
+          const target = el.closest('.reader-paragraph, .reader-header');
+          if (target && target.id) {
+              currentAnchorRef.current = target.id;
+          }
+      }
+  };
+
   const calculatePages = () => {
     if (contentRef.current) {
         const scrollW = contentRef.current.scrollWidth;
         const screenW = window.innerWidth;
         const pages = Math.ceil(scrollW / screenW);
-        setTotalPages(Math.max(1, pages));
-        setCurrentPage(curr => Math.min(curr, Math.max(0, pages - 1)));
+        const newTotalPages = Math.max(1, pages);
+        
+        let newPage = 0;
+        
+        // Пытаемся восстановить позицию по якорю
+        if (currentAnchorRef.current) {
+            const anchor = document.getElementById(currentAnchorRef.current);
+            if (anchor) {
+                // offsetLeft показывает в какой колонке (странице) начинается элемент
+                const anchorPage = Math.floor(anchor.offsetLeft / screenW);
+                newPage = Math.min(anchorPage, newTotalPages - 1);
+            } else {
+                // Если якорь не найден, пытаемся остаться пропорционально (фоллбэк)
+                // Но лучше использовать текущую страницу, если просто ресайз без смены контента
+                newPage = Math.min(currentPage, Math.max(0, newTotalPages - 1));
+            }
+        } else {
+             // Фоллбэк для начальной загрузки или если якоря нет
+             newPage = Math.min(currentPage, Math.max(0, newTotalPages - 1));
+        }
+
+        setTotalPages(newTotalPages);
+        setCurrentPage(newPage);
     }
   };
 
@@ -180,6 +222,8 @@ const Reader = ({ darkMode, setDarkMode }) => {
   };
   
   const changeFontSize = (delta) => {
+      // Перед изменением шрифта обновляем якорь, чтобы не потерять место
+      updateAnchor();
       setFontSize(prev => Math.max(14, Math.min(32, prev + delta)));
   };
 

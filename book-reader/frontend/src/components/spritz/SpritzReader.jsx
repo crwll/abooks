@@ -8,6 +8,7 @@ const SpritzReader = ({ content, title, darkMode, onComplete, onClose }) => {
   const [currentIndex, setCurrentIndex] = useState(0);
   const [wpm, setWpm] = useState(250);
   const [fontSize, setFontSize] = useState(48);
+  const [timeSpent, setTimeSpent] = useState(0);
   const [words, setWords] = useState([]);
   const intervalRef = useRef(null);
 
@@ -17,8 +18,25 @@ const SpritzReader = ({ content, title, darkMode, onComplete, onClose }) => {
       setWords(wordArray);
       setCurrentIndex(0);
       setIsPlaying(false);
+      setTimeSpent(0);
     }
   }, [content]);
+
+  useEffect(() => {
+    let timer;
+    if (isPlaying) {
+      timer = setInterval(() => {
+        setTimeSpent(prev => prev + 1);
+      }, 1000);
+    }
+    return () => clearInterval(timer);
+  }, [isPlaying]);
+
+  const formatTime = (seconds) => {
+    const mins = Math.floor(seconds / 60);
+    const secs = seconds % 60;
+    return `${mins}:${secs.toString().padStart(2, '0')}`;
+  };
 
   useEffect(() => {
     if (isPlaying && words.length > 0) {
@@ -133,11 +151,10 @@ const SpritzReader = ({ content, title, darkMode, onComplete, onClose }) => {
         onClick={(e) => e.stopPropagation()}
         style={{
           position: 'absolute',
-          bottom: 0,
+          bottom: '60px',
           left: 0,
           right: 0,
           padding: '20px',
-          paddingBottom: '40px',
           background: `linear-gradient(to top, ${theme.bg} 90%, transparent)`,
           display: 'flex',
           flexDirection: 'column',
@@ -202,7 +219,7 @@ const SpritzReader = ({ content, title, darkMode, onComplete, onClose }) => {
           </button>
         </div>
         
-        <div style={{ display: 'flex', alignItems: 'center', gap: '16px', marginBottom: '30px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
            <button
             onClick={() => setFontSize(Math.max(20, fontSize - 4))}
             style={{
@@ -235,10 +252,28 @@ const SpritzReader = ({ content, title, darkMode, onComplete, onClose }) => {
             A+
           </button>
         </div>
+      </div>
 
+      {/* Always Visible Footer (Progress & Timer) */}
+      <div 
+        style={{
+            position: 'absolute',
+            bottom: 0,
+            left: 0,
+            right: 0,
+            height: '60px',
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'center',
+            justifyContent: 'center',
+            gap: '8px',
+            zIndex: 110,
+            pointerEvents: 'none'
+        }}
+      >
         <div
           style={{
-            width: '100%',
+            width: 'calc(100% - 40px)',
             maxWidth: '400px',
             height: '4px',
             background: theme.surface3,
@@ -254,6 +289,9 @@ const SpritzReader = ({ content, title, darkMode, onComplete, onClose }) => {
               transition: 'width 0.1s linear',
             }}
           />
+        </div>
+        <div style={{ fontSize: '12px', color: theme.textSecondary, fontFamily: 'monospace' }}>
+            {formatTime(timeSpent)}
         </div>
       </div>
     </div>
