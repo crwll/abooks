@@ -3,7 +3,7 @@ import api from './api';
 export const getBooksService = {
   async getAll(status = null) {
     const params = status ? { status } : {};
-    const response = await api.get('/api/books', { params });
+    const response = await api.get('/api/books/', { params });
     return response.data;
   },
 
@@ -27,7 +27,7 @@ export const getBooksService = {
   async addBook(file) {
     const formData = new FormData();
     formData.append('file', file);
-    const response = await api.post('/api/books', formData, {
+    const response = await api.post('/api/books/', formData, {
       headers: {
         'Content-Type': 'multipart/form-data',
       },
