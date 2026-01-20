@@ -1,0 +1,42 @@
+version: '3.8'
+
+services:
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: book-reader-backend
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./data:/app/data
+    environment:
+      - ENV=production
+      - DEBUG=false
+      - SKIP_TG_VALIDATION=false
+      - DATABASE_URL=sqlite:///./data/database.db
+    env_file:
+      - .env
+    restart: unless-stopped
+    networks:
+      - book-reader-network
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: book-reader-frontend
+    ports:
+      - "80:80"
+    depends_on:
+      - backend
+    restart: unless-stopped
+    networks:
+      - book-reader-network
+
+networks:
+  book-reader-network:
+    driver: bridge
+
+volumes:
+  data:
