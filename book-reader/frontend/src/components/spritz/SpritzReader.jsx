@@ -103,47 +103,63 @@ const SpritzReader = ({ content, title, darkMode, onComplete, onClose, initialIn
         overflow: 'hidden'
       }}
     >
-      {/* Header */}
+      {/* Close Button - Always visible and prominent */}
+      <button 
+        onClick={(e) => { e.stopPropagation(); handleClose(); }} 
+        style={{ 
+          position: 'fixed',
+          top: 'calc(var(--tg-content-safe-area-inset-top, var(--tg-safe-area-inset-top, env(safe-area-inset-top, 0px))) + 12px)',
+          left: '16px',
+          background: darkMode ? 'rgba(255, 255, 255, 0.15)' : 'rgba(0, 0, 0, 0.1)',
+          backdropFilter: 'blur(10px)',
+          WebkitBackdropFilter: 'blur(10px)',
+          border: `2px solid ${darkMode ? 'rgba(255, 255, 255, 0.3)' : 'rgba(0, 0, 0, 0.2)'}`,
+          borderRadius: '50%', 
+          width: 44, 
+          height: 44, 
+          display: 'flex', 
+          alignItems: 'center', 
+          justifyContent: 'center', 
+          cursor: 'pointer',
+          color: theme.textPrimary,
+          pointerEvents: 'auto',
+          zIndex: 120,
+          boxShadow: darkMode 
+            ? '0 4px 12px rgba(0, 0, 0, 0.5), 0 0 0 1px rgba(255, 255, 255, 0.1)'
+            : '0 4px 12px rgba(0, 0, 0, 0.2)',
+          transition: 'all 0.2s ease',
+        }}
+        onMouseEnter={(e) => {
+          e.currentTarget.style.transform = 'scale(1.1)';
+          e.currentTarget.style.background = darkMode ? 'rgba(255, 255, 255, 0.25)' : 'rgba(0, 0, 0, 0.2)';
+        }}
+        onMouseLeave={(e) => {
+          e.currentTarget.style.transform = 'scale(1)';
+          e.currentTarget.style.background = darkMode ? 'rgba(255, 255, 255, 0.15)' : 'rgba(0, 0, 0, 0.1)';
+        }}
+      >
+        <X size={22} strokeWidth={2.5} />
+      </button>
+
+      {/* Header - Title only */}
       <div 
         onClick={(e) => e.stopPropagation()}
         style={{ 
         position: 'fixed', 
-        top: 0, 
-        left: 0, 
-        right: 0, 
+        top: 'calc(var(--tg-content-safe-area-inset-top, var(--tg-safe-area-inset-top, env(safe-area-inset-top, 0px))) + 12px)',
+        left: '76px',
+        right: '16px',
         padding: '12px 16px',
-        paddingTop: 'calc(var(--tg-content-safe-area-inset-top, var(--tg-safe-area-inset-top, env(safe-area-inset-top, 0px))) + 8px)',
         display: 'flex', 
-        justifyContent: 'space-between', 
         alignItems: 'center',
         zIndex: 110,
         opacity: !isPlaying ? 1 : 0,
         transition: 'opacity 0.3s ease',
-        background: `linear-gradient(to bottom, ${theme.bg} 80%, transparent)`,
+        pointerEvents: 'none',
       }}>
-        <button 
-          onClick={handleClose} 
-          style={{ 
-            background: theme.surface2, 
-            border: 'none', 
-            borderRadius: '50%', 
-            width: 40, 
-            height: 40, 
-            display: 'flex', 
-            alignItems: 'center', 
-            justifyContent: 'center', 
-            cursor: 'pointer',
-            color: theme.textPrimary,
-            pointerEvents: 'auto',
-            zIndex: 111,
-          }}
-        >
-          <X size={20} />
-        </button>
-        <div style={{ color: theme.textSecondary, fontSize: '14px', maxWidth: '70%', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+        <div style={{ color: theme.textSecondary, fontSize: '14px', fontWeight: '500', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
             {title}
         </div>
-        <div style={{ width: 40 }} />
       </div>
 
       {/* Word Display - Spritz Style */}
