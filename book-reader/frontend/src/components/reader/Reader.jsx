@@ -24,6 +24,7 @@ const Reader = ({ darkMode, setDarkMode }) => {
 
   // Spritz states
   const [spritzMode, setSpritzMode] = useState(false);
+  const [spritzSelectionMode, setSpritzSelectionMode] = useState(false);
   const [rawChapters, setRawChapters] = useState([]);
   const [currentChapterIndex, setCurrentChapterIndex] = useState(0);
   const [showSpritzEndModal, setShowSpritzEndModal] = useState(false);
@@ -56,7 +57,41 @@ const Reader = ({ darkMode, setDarkMode }) => {
                const paragraphs = ch.content
                    .split('\n\n')
                    .filter(p => p.trim())
-                   .map((p, pIdx) => `<p id="${chapterId}-p-${pIdx}" class="reader-paragraph" style="margin-bottom: 0.8em; text-align: justify; text-indent: 1.5em;">${p.trim()}</p>`)
+                   .map((p, pIdx) => {
+                       const trimmed = p.trim();
+                       
+                       // Проверяем, является ли параграф подзаголовком (поддержка разных уровней)
+                       const headerMatch = trimmed.match(/^(#{3,6})\s+(.+)$/);
+                       if (headerMatch) {
+                           const level = headerMatch[1].length; // 3, 4, 5 или 6
+                           const subtitle = headerMatch[2];
+                           
+                           // Символы и стили в зависимости от уровня вложенности
+                           const styles = {
+                               3: { symbol: '§', fontSize: '1em', marginTop: '1.5em', indent: '0em' },
+                               4: { symbol: '◆', fontSize: '1em', marginTop: '1.2em', indent: '1em' },
+                               5: { symbol: '●', fontSize: '0.95em', marginTop: '1em', indent: '2em' },
+                               6: { symbol: '◦', fontSize: '0.95em', marginTop: '0.8em', indent: '3em' }
+                           };
+                           
+                           const style = styles[level] || styles[3];
+                           
+                           return `
+                               <p id="${chapterId}-p-${pIdx}" class="reader-subheader" style="
+                                   margin: ${style.marginTop} 0 0.6em 0; 
+                                   padding-left: ${style.indent};
+                                   text-align: left;
+                                   font-size: ${style.fontSize}; 
+                                   font-weight: 600; 
+                                   opacity: 0.5;
+                                   text-indent: 0;
+                                   break-after: avoid;
+                               "><span style="font-family: monospace; font-weight: 700;">${style.symbol}</span> ${subtitle}</p>
+                           `;
+                       }
+                       
+                       return `<p id="${chapterId}-p-${pIdx}" class="reader-paragraph" style="margin-bottom: 0.8em; text-align: justify; text-indent: 1.5em;">${trimmed}</p>`;
+                   })
                    .join('');
 
                // break-before: column гарантирует начало с новой колонки (страницы)
@@ -164,11 +199,14 @@ const Reader = ({ darkMode, setDarkMode }) => {
       const currentScrollX = currentPage * window.innerWidth;
       let foundTitle = chaptersInfo[0].title;
       let foundIndex = 0;
+      let maxOffsetLeft = -1;
       
       for (const ch of chaptersInfo) {
           const el = document.getElementById(ch.id);
-          if (el) {
-              if (el.offsetLeft <= currentScrollX + 50) { 
+          if (el && el.offsetLeft !== undefined) {
+              // Ищем главу с максимальным offsetLeft, который <= текущей позиции
+              if (el.offsetLeft <= currentScrollX && el.offsetLeft > maxOffsetLeft) {
+                  maxOffsetLeft = el.offsetLeft;
                   foundTitle = ch.title;
                   foundIndex = ch.index;
               }
@@ -213,55 +251,57 @@ const Reader = ({ darkMode, setDarkMode }) => {
   };
 
   const startSpritz = () => {
-      let startIndex = 0;
-      const selection = window.getSelection();
-      
-      if (selection && selection.toString().trim().length > 0) {
-          const selectedText = selection.toString().trim();
-          const currentContent = rawChapters[currentChapterIndex]?.content || '';
-          
-          // Try to find the selection in the content
-          // This is a simple search, it might find the first occurrence
-          // Ideally we would use more context or DOM mapping
-          const idx = currentContent.indexOf(selectedText);
-          if (idx !== -1) {
-              // Count words before the selection
-              const textBefore = currentContent.substring(0, idx);
-              const wordsBefore = textBefore.split(/\s+/).filter(w => w.length > 0).length;
-              startIndex = wordsBefore;
-          }
-      } else {
-           // Try to find start index based on the visible element (anchor)
-           const currentChapter = rawChapters[currentChapterIndex];
-           if (currentChapter && currentAnchorRef.current) {
-               const anchorId = currentAnchorRef.current;
-               
-               // Check if anchor is in current chapter
-               if (anchorId.startsWith(`chapter-${currentChapterIndex}-`)) {
-                   if (anchorId.includes('-title')) {
-                       startIndex = 0;
-                   } else if (anchorId.includes('-p-')) {
-                       // Extract paragraph index
-                       const parts = anchorId.split('-p-');
-                       if (parts.length === 2) {
-                           const pIdx = parseInt(parts[1], 10);
-                           
-                           // Sum words of all previous paragraphs
-                           const paragraphs = currentChapter.content.split('\n\n').filter(p => p.trim());
-                           let wordsCount = 0;
-                           
-                           for (let i = 0; i < pIdx && i < paragraphs.length; i++) {
-                               const pWords = paragraphs[i].split(/\s+/).filter(w => w.length > 0).length;
-                               wordsCount += pWords;
-                           }
-                           startIndex = wordsCount;
-                       }
-                   }
-               }
-           }
-      }
+      // Включаем режим выбора параграфа
+      setSpritzSelectionMode(true);
+      setShowControls(false);
+  };
 
+  const handleParagraphClick = (e) => {
+      if (!spritzSelectionMode) return;
+      
+      e.stopPropagation();
+      
+      // Находим кликнутый параграф или заголовок
+      const target = e.target.closest('.reader-paragraph, .reader-header, .reader-subheader');
+      if (!target || !target.id) return;
+      
+      const elementId = target.id;
+      
+      // Извлекаем индекс главы из ID (формат: chapter-N-p-M или chapter-N-title)
+      const chapterMatch = elementId.match(/^chapter-(\d+)/);
+      if (!chapterMatch) return;
+      
+      const chapterIndex = parseInt(chapterMatch[1], 10);
+      const currentChapter = rawChapters[chapterIndex];
+      if (!currentChapter) return;
+      
+      let startIndex = 0;
+      
+      if (elementId.includes('-title')) {
+          // Начало главы
+          startIndex = 0;
+      } else if (elementId.includes('-p-')) {
+          // Извлекаем индекс параграфа
+          const pMatch = elementId.match(/-p-(\d+)$/);
+          if (pMatch) {
+              const pIdx = parseInt(pMatch[1], 10);
+              
+              // Считаем слова до этого параграфа
+              const paragraphs = currentChapter.content.split('\n\n').filter(p => p.trim());
+              let wordsCount = 0;
+              
+              for (let i = 0; i < pIdx && i < paragraphs.length; i++) {
+                  const pWords = paragraphs[i].split(/\s+/).filter(w => w.length > 0).length;
+                  wordsCount += pWords;
+              }
+              startIndex = wordsCount;
+          }
+      }
+      
+      // Запускаем Spritz с выбранной позиции
+      setCurrentChapterIndex(chapterIndex);
       setSpritzInitialIndex(startIndex);
+      setSpritzSelectionMode(false);
       setSpritzMode(true);
   };
 
@@ -328,15 +368,28 @@ const Reader = ({ darkMode, setDarkMode }) => {
         overflow: 'hidden',
         position: 'relative'
       }}
-      onClick={() => setShowControls(!showControls)}
+      onClick={() => !spritzSelectionMode && setShowControls(!showControls)}
     >
+      {/* Стили для подсветки параграфов в режиме выбора */}
+      {spritzSelectionMode && (
+          <style>{`
+              .reader-paragraph:hover,
+              .reader-header:hover,
+              .reader-subheader:hover {
+                  background: ${darkMode ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.05)'};
+                  cursor: pointer;
+                  border-radius: 4px;
+                  transition: background 0.2s ease;
+              }
+          `}</style>
+      )}
       {/* Header */}
       <div style={{
           position: 'fixed', top: 0, left: 0, right: 0,
           padding: '16px', background: theme.bg,
           display: 'flex', justifyContent: 'space-between', alignItems: 'center',
           zIndex: 50,
-          transform: showControls ? 'translateY(0)' : 'translateY(-100%)',
+          transform: (showControls && !spritzSelectionMode) ? 'translateY(0)' : 'translateY(-100%)',
           transition: 'transform 0.3s ease',
           boxShadow: '0 2px 8px rgba(0,0,0,0.1)'
       }}>
@@ -363,9 +416,9 @@ const Reader = ({ darkMode, setDarkMode }) => {
           position: 'fixed', top: '80px', left: 0, right: 0,
           display: 'flex', justifyContent: 'center', gap: '12px',
           zIndex: 49,
-          transform: showControls ? 'translateY(0)' : 'translateY(-200%)',
-          opacity: showControls ? 1 : 0,
-          pointerEvents: showControls ? 'auto' : 'none',
+          transform: (showControls && !spritzSelectionMode) ? 'translateY(0)' : 'translateY(-200%)',
+          opacity: (showControls && !spritzSelectionMode) ? 1 : 0,
+          pointerEvents: (showControls && !spritzSelectionMode) ? 'auto' : 'none',
           transition: 'transform 0.3s ease, opacity 0.2s ease'
       }}>
           <div style={{ background: theme.surface1, padding: '8px 16px', borderRadius: '24px', display: 'flex', gap: '16px', alignItems: 'center', boxShadow: '0 4px 12px rgba(0,0,0,0.15)' }} onClick={e => e.stopPropagation()}>
@@ -394,6 +447,7 @@ const Reader = ({ darkMode, setDarkMode }) => {
       }}>
           <div 
              ref={contentRef}
+             onClick={handleParagraphClick}
              style={{
                  height: '100%',
                  width: '100%',
@@ -407,15 +461,20 @@ const Reader = ({ darkMode, setDarkMode }) => {
                  transform: `translateX(calc(-${currentPage} * 100vw))`,
                  transition: 'transform 0.3s cubic-bezier(0.25, 1, 0.5, 1)',
                  padding: '0 16px',
-                 boxSizing: 'border-box'
+                 boxSizing: 'border-box',
+                 cursor: spritzSelectionMode ? 'pointer' : 'default'
              }}
              dangerouslySetInnerHTML={{ __html: fullContent }}
           />
       </div>
 
       {/* Click Zones */}
-      <div style={{ position: 'absolute', top: 70, bottom: 70, left: 0, width: '30%', zIndex: 10 }} onClick={(e) => { e.stopPropagation(); changePage(currentPage - 1); }} />
-      <div style={{ position: 'absolute', top: 70, bottom: 70, right: 0, width: '30%', zIndex: 10 }} onClick={(e) => { e.stopPropagation(); changePage(currentPage + 1); }} />
+      {!spritzSelectionMode && (
+          <>
+              <div style={{ position: 'absolute', top: 70, bottom: 70, left: 0, width: '30%', zIndex: 10 }} onClick={(e) => { e.stopPropagation(); changePage(currentPage - 1); }} />
+              <div style={{ position: 'absolute', top: 70, bottom: 70, right: 0, width: '30%', zIndex: 10 }} onClick={(e) => { e.stopPropagation(); changePage(currentPage + 1); }} />
+          </>
+      )}
 
       {/* Footer */}
       <div style={{
@@ -423,7 +482,7 @@ const Reader = ({ darkMode, setDarkMode }) => {
           padding: '16px', background: theme.bg,
           display: 'flex', justifyContent: 'space-between', alignItems: 'center',
           zIndex: 50,
-          transform: showControls ? 'translateY(0)' : 'translateY(100%)',
+          transform: (showControls && !spritzSelectionMode) ? 'translateY(0)' : 'translateY(100%)',
           transition: 'transform 0.3s ease',
           boxShadow: '0 -2px 8px rgba(0,0,0,0.1)'
       }}>
@@ -460,6 +519,66 @@ const Reader = ({ darkMode, setDarkMode }) => {
               <ChevronRight size={24} color={theme.textPrimary} />
           </button>
       </div>
+
+      {/* Spritz Selection Mode Overlay */}
+      {spritzSelectionMode && (
+          <div style={{
+              position: 'fixed',
+              top: 0,
+              left: 0,
+              right: 0,
+              bottom: 0,
+              background: 'rgba(0, 0, 0, 0.7)',
+              zIndex: 90,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              pointerEvents: 'none'
+          }}>
+              <div style={{
+                  background: theme.surface1,
+                  padding: '24px 32px',
+                  borderRadius: '16px',
+                  maxWidth: '90%',
+                  textAlign: 'center',
+                  boxShadow: '0 8px 32px rgba(0,0,0,0.3)'
+              }}>
+                  <div style={{
+                      fontSize: '20px',
+                      fontWeight: 'bold',
+                      color: theme.textPrimary,
+                      marginBottom: '12px'
+                  }}>
+                      Выберите начало
+                  </div>
+                  <div style={{
+                      fontSize: '14px',
+                      color: theme.textSecondary,
+                      marginBottom: '16px'
+                  }}>
+                      Нажмите на параграф или заголовок,<br />с которого хотите начать чтение
+                  </div>
+                  <button
+                      onClick={(e) => {
+                          e.stopPropagation();
+                          setSpritzSelectionMode(false);
+                      }}
+                      style={{
+                          padding: '8px 24px',
+                          borderRadius: '8px',
+                          border: 'none',
+                          background: theme.surface2,
+                          color: theme.textPrimary,
+                          cursor: 'pointer',
+                          fontSize: '14px',
+                          pointerEvents: 'auto'
+                      }}
+                  >
+                      Отмена
+                  </button>
+              </div>
+          </div>
+      )}
 
       {/* Spritz Reader Overlay */}
       {spritzMode && rawChapters.length > 0 && (

@@ -77,24 +77,29 @@ class FB2Parser:
         body = self.root.find('.//fb:body', self.ns)
         
         if body is not None:
-            sections = body.findall('.//fb:section', self.ns)
+            # Ищем только секции ПЕРВОГО уровня (прямые дети body)
+            sections = body.findall('fb:section', self.ns)
             
             if not sections:
                 sections = [body]
             
             for i, section in enumerate(sections):
-                title_elem = section.find('.//fb:title', self.ns)
+                # Ищем title только на первом уровне секции
+                title_elem = section.find('fb:title', self.ns)
                 title = "Глава " + str(i + 1)
                 
                 if title_elem is not None:
                     title_parts = []
-                    for p in title_elem.findall('.//fb:p', self.ns):
-                        if p.text:
-                            title_parts.append(p.text.strip())
+                    for p in title_elem.findall('fb:p', self.ns):
+                        # Используем itertext() для захвата текста внутри вложенных тегов
+                        text = ''.join(p.itertext()).strip()
+                        if text:
+                            title_parts.append(text)
                     if title_parts:
                         title = ' '.join(title_parts)
                 
-                content = self.extract_section_content(section)
+                # Извлекаем контент с учетом вложенных подсекций
+                content = self.extract_section_content(section, skip_title=True, level=1)
                 
                 if content:
                     chapters.append({
@@ -104,16 +109,36 @@ class FB2Parser:
         
         return chapters
     
-    def extract_section_content(self, section) -> str:
+    def extract_section_content(self, section, skip_title=False, level=1) -> str:
         paragraphs = []
         
         for elem in section:
+            # Пропускаем title на первом уровне, если указано
+            if skip_title and elem.tag.endswith('title'):
+                continue
+                
             if elem.tag.endswith('p'):
                 text = ''.join(elem.itertext()).strip()
                 if text:
                     paragraphs.append(text)
+                    
             elif elem.tag.endswith('section'):
-                subsection_content = self.extract_section_content(elem)
+                # Обрабатываем вложенные подсекции (подглавы)
+                subsection_title_elem = elem.find('fb:title', self.ns)
+                if subsection_title_elem is not None:
+                    title_parts = []
+                    for p in subsection_title_elem.findall('fb:p', self.ns):
+                        # Используем itertext() для захвата текста внутри вложенных тегов (<strong>, <em> и т.д.)
+                        text = ''.join(p.itertext()).strip()
+                        if text:
+                            title_parts.append(text)
+                    if title_parts:
+                        # Добавляем маркеры в зависимости от уровня вложенности
+                        marker = '#' * min(level + 2, 6)  # Максимум 6 уровней
+                        paragraphs.append(marker + ' ' + ' '.join(title_parts))
+                
+                # Рекурсивно извлекаем контент подсекции с увеличенным уровнем
+                subsection_content = self.extract_section_content(elem, skip_title=True, level=level + 1)
                 if subsection_content:
                     paragraphs.append(subsection_content)
         
