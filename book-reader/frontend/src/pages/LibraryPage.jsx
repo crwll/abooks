@@ -35,7 +35,12 @@ const LibraryPage = ({ darkMode, setDarkMode }) => {
   };
 
   return (
-    <div style={{ padding: '16px', paddingBottom: '100px' }}>
+    <div style={{ 
+      padding: '16px', 
+      paddingTop: 'max(16px, calc(var(--tg-content-safe-area-inset-top, var(--tg-safe-area-inset-top, env(safe-area-inset-top, 0px))) + 16px))',
+      paddingBottom: '100px',
+      minHeight: 'var(--tg-viewport-stable-height, 100vh)',
+    }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px' }}>
         <h1
           style={{

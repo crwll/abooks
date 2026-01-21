@@ -5,16 +5,13 @@
     <link rel="icon" type="image/svg+xml" href="/vite.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
     <title>Book Reader</title>
-    <script>
+    <script src="https://telegram.org/js/telegram-web-app.js"></script>
+    <script type="module">
       // Load Telegram WebApp mock in development
-      if (import.meta.env.VITE_ENV === 'development') {
-        const script = document.createElement('script');
-        script.src = '/src/mocks/telegramWebApp.js';
-        script.type = 'module';
-        document.head.appendChild(script);
+      if (!window.Telegram?.WebApp) {
+        import('/src/mocks/telegramWebApp.js');
       }
     </script>
-    <script src="https://telegram.org/js/telegram-web-app.js"></script>
   </head>
   <body>
     <div id="root"></div>

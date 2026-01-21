@@ -112,6 +112,7 @@ const SpritzReader = ({ content, title, darkMode, onComplete, onClose, initialIn
         left: 0, 
         right: 0, 
         padding: '16px',
+        paddingTop: 'max(16px, calc(var(--tg-content-safe-area-inset-top, var(--tg-safe-area-inset-top, env(safe-area-inset-top, 0px))) + 8px))',
         display: 'flex', 
         justifyContent: 'space-between', 
         alignItems: 'center',
@@ -225,7 +226,7 @@ const SpritzReader = ({ content, title, darkMode, onComplete, onClose, initialIn
         onClick={(e) => e.stopPropagation()}
         style={{
           position: 'absolute',
-          bottom: '60px',
+          bottom: 'calc(60px + var(--tg-content-safe-area-inset-bottom, var(--tg-safe-area-inset-bottom, env(safe-area-inset-bottom, 0px))))',
           left: 0,
           right: 0,
           padding: '20px',
@@ -383,6 +384,7 @@ const SpritzReader = ({ content, title, darkMode, onComplete, onClose, initialIn
             left: 0,
             right: 0,
             height: '60px',
+            paddingBottom: 'var(--tg-content-safe-area-inset-bottom, var(--tg-safe-area-inset-bottom, env(safe-area-inset-bottom, 0px)))',
             display: 'flex',
             flexDirection: 'column',
             alignItems: 'center',

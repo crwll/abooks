@@ -398,6 +398,7 @@ const Reader = ({ darkMode, setDarkMode }) => {
     <div 
       style={{ 
         height: '100vh', 
+        height: 'var(--tg-viewport-height, 100vh)',
         width: '100vw', 
         background: theme.bg, 
         overflow: 'hidden',
@@ -408,7 +409,9 @@ const Reader = ({ darkMode, setDarkMode }) => {
       {/* Header */}
       <div style={{
           position: 'fixed', top: 0, left: 0, right: 0,
-          padding: '16px', background: theme.bg,
+          padding: '16px',
+          paddingTop: 'max(16px, calc(var(--tg-content-safe-area-inset-top, var(--tg-safe-area-inset-top, env(safe-area-inset-top, 0px))) + 8px))',
+          background: theme.bg,
           display: 'flex', justifyContent: 'space-between', alignItems: 'center',
           zIndex: 50,
           transform: showControls ? 'translateY(0)' : 'translateY(-100%)',
@@ -435,7 +438,9 @@ const Reader = ({ darkMode, setDarkMode }) => {
 
       {/* Font Controls */}
       <div style={{
-          position: 'fixed', top: '80px', left: 0, right: 0,
+          position: 'fixed',
+          top: 'calc(80px + var(--tg-content-safe-area-inset-top, var(--tg-safe-area-inset-top, env(safe-area-inset-top, 0px))))',
+          left: 0, right: 0,
           display: 'flex', justifyContent: 'center', gap: '12px',
           zIndex: 49,
           transform: showControls ? 'translateY(0)' : 'translateY(-200%)',
@@ -469,8 +474,8 @@ const Reader = ({ darkMode, setDarkMode }) => {
       {/* Content Area */}
       <div style={{ 
           position: 'absolute',
-          top: '70px', 
-          bottom: '70px',
+          top: 'calc(70px + var(--tg-content-safe-area-inset-top, var(--tg-safe-area-inset-top, env(safe-area-inset-top, 0px))))', 
+          bottom: 'calc(70px + var(--tg-content-safe-area-inset-bottom, var(--tg-safe-area-inset-bottom, env(safe-area-inset-bottom, 0px))))',
           left: 0,
           right: 0,
           overflow: 'hidden' 
@@ -497,13 +502,25 @@ const Reader = ({ darkMode, setDarkMode }) => {
       </div>
 
       {/* Click Zones */}
-      <div style={{ position: 'absolute', top: 70, bottom: 70, left: 0, width: '30%', zIndex: 10 }} onClick={(e) => { e.stopPropagation(); changePage(currentPage - 1); }} />
-      <div style={{ position: 'absolute', top: 70, bottom: 70, right: 0, width: '30%', zIndex: 10 }} onClick={(e) => { e.stopPropagation(); changePage(currentPage + 1); }} />
+      <div style={{ 
+        position: 'absolute', 
+        top: 'calc(70px + var(--tg-content-safe-area-inset-top, var(--tg-safe-area-inset-top, env(safe-area-inset-top, 0px))))', 
+        bottom: 'calc(70px + var(--tg-content-safe-area-inset-bottom, var(--tg-safe-area-inset-bottom, env(safe-area-inset-bottom, 0px))))', 
+        left: 0, width: '30%', zIndex: 10 
+      }} onClick={(e) => { e.stopPropagation(); changePage(currentPage - 1); }} />
+      <div style={{ 
+        position: 'absolute', 
+        top: 'calc(70px + var(--tg-content-safe-area-inset-top, var(--tg-safe-area-inset-top, env(safe-area-inset-top, 0px))))', 
+        bottom: 'calc(70px + var(--tg-content-safe-area-inset-bottom, var(--tg-safe-area-inset-bottom, env(safe-area-inset-bottom, 0px))))', 
+        right: 0, width: '30%', zIndex: 10 
+      }} onClick={(e) => { e.stopPropagation(); changePage(currentPage + 1); }} />
 
       {/* Footer */}
       <div style={{
           position: 'fixed', bottom: 0, left: 0, right: 0,
-          padding: '16px', background: theme.bg,
+          padding: '16px',
+          paddingBottom: 'max(16px, calc(var(--tg-content-safe-area-inset-bottom, var(--tg-safe-area-inset-bottom, env(safe-area-inset-bottom, 0px))) + 8px))',
+          background: theme.bg,
           display: 'flex', justifyContent: 'space-between', alignItems: 'center',
           zIndex: 50,
           transform: showControls ? 'translateY(0)' : 'translateY(100%)',
