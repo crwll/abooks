@@ -4,6 +4,15 @@ export const initTelegram = () => {
   if (tg) {
     tg.ready();
     tg.expand();
+    tg.enableClosingConfirmation();
+    tg.disableVerticalSwipes();
+    
+    // Устанавливаем CSS переменные для безопасных зон
+    document.documentElement.style.setProperty('--tg-viewport-height', `${tg.viewportHeight}px`);
+    document.documentElement.style.setProperty('--tg-viewport-stable-height', `${tg.viewportStableHeight}px`);
+    document.documentElement.style.setProperty('--tg-safe-area-inset-top', `${tg.safeAreaInset?.top || 0}px`);
+    document.documentElement.style.setProperty('--tg-safe-area-inset-bottom', `${tg.safeAreaInset?.bottom || 0}px`);
+    
     return tg;
   }
   

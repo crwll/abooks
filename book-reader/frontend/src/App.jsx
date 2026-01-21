@@ -34,7 +34,8 @@ function App() {
         background: theme.bg,
         color: theme.textPrimary,
         fontFamily: "'SF Pro Display', 'Inter', -apple-system, BlinkMacSystemFont, sans-serif",
-        transition: 'background 0.3s ease, color 0.3s ease'
+        transition: 'background 0.3s ease, color 0.3s ease',
+        paddingTop: 'max(var(--tg-safe-area-inset-top, 0px), env(safe-area-inset-top, 0px))',
       }}
     >
       <Router>
@@ -43,7 +44,7 @@ function App() {
           <Route path="/reader/:bookId" element={<ReaderPage darkMode={darkMode} setDarkMode={setDarkMode} />} />
           <Route path="/profile" element={<ProfilePage darkMode={darkMode} setDarkMode={setDarkMode} />} />
         </Routes>
-        <BottomNav theme={theme} />
+        <BottomNav theme={theme} darkMode={darkMode} />
         <DevPanel />
       </Router>
     </div>

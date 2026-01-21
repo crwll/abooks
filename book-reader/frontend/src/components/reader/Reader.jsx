@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { ArrowLeft, Heart, ChevronLeft, ChevronRight, Sun, Moon, Zap } from 'lucide-react';
+import { ArrowLeft, Heart, ChevronLeft, ChevronRight, Sun, Moon, Zap, List, Hash } from 'lucide-react';
 import { getTheme } from '../../utils/theme';
 import { getBooksService } from '../../services/books';
 import api from '../../services/api';
@@ -24,11 +24,15 @@ const Reader = ({ darkMode, setDarkMode }) => {
 
   // Spritz states
   const [spritzMode, setSpritzMode] = useState(false);
-  const [spritzSelectionMode, setSpritzSelectionMode] = useState(false);
   const [rawChapters, setRawChapters] = useState([]);
   const [currentChapterIndex, setCurrentChapterIndex] = useState(0);
   const [showSpritzEndModal, setShowSpritzEndModal] = useState(false);
   const [spritzInitialIndex, setSpritzInitialIndex] = useState(0);
+  
+  // Navigation modals
+  const [showPageModal, setShowPageModal] = useState(false);
+  const [showTocModal, setShowTocModal] = useState(false);
+  const [pageInputValue, setPageInputValue] = useState('');
   
   const contentRef = useRef(null);
   const currentAnchorRef = useRef(null);
@@ -251,57 +255,67 @@ const Reader = ({ darkMode, setDarkMode }) => {
   };
 
   const startSpritz = () => {
-      // Включаем режим выбора параграфа
-      setSpritzSelectionMode(true);
-      setShowControls(false);
-  };
-
-  const handleParagraphClick = (e) => {
-      if (!spritzSelectionMode) return;
+      // Находим главу по видимому элементу в центре экрана
+      let actualChapterIndex = 0;
+      const x = window.innerWidth / 2;
+      const y = window.innerHeight / 2;
+      const centerElement = document.elementFromPoint(x, y);
       
-      e.stopPropagation();
-      
-      // Находим кликнутый параграф или заголовок
-      const target = e.target.closest('.reader-paragraph, .reader-header, .reader-subheader');
-      if (!target || !target.id) return;
-      
-      const elementId = target.id;
-      
-      // Извлекаем индекс главы из ID (формат: chapter-N-p-M или chapter-N-title)
-      const chapterMatch = elementId.match(/^chapter-(\d+)/);
-      if (!chapterMatch) return;
-      
-      const chapterIndex = parseInt(chapterMatch[1], 10);
-      const currentChapter = rawChapters[chapterIndex];
-      if (!currentChapter) return;
-      
-      let startIndex = 0;
-      
-      if (elementId.includes('-title')) {
-          // Начало главы
-          startIndex = 0;
-      } else if (elementId.includes('-p-')) {
-          // Извлекаем индекс параграфа
-          const pMatch = elementId.match(/-p-(\d+)$/);
-          if (pMatch) {
-              const pIdx = parseInt(pMatch[1], 10);
-              
-              // Считаем слова до этого параграфа
-              const paragraphs = currentChapter.content.split('\n\n').filter(p => p.trim());
-              let wordsCount = 0;
-              
-              for (let i = 0; i < pIdx && i < paragraphs.length; i++) {
-                  const pWords = paragraphs[i].split(/\s+/).filter(w => w.length > 0).length;
-                  wordsCount += pWords;
+      if (centerElement) {
+          // Ищем ближайший элемент с классом chapter
+          const chapterElement = centerElement.closest('.chapter');
+          if (chapterElement && chapterElement.id) {
+              // ID имеет формат "chapter-N"
+              const match = chapterElement.id.match(/^chapter-(\d+)$/);
+              if (match) {
+                  actualChapterIndex = parseInt(match[1], 10);
               }
-              startIndex = wordsCount;
           }
       }
       
-      // Запускаем Spritz с выбранной позиции
-      setCurrentChapterIndex(chapterIndex);
+      let startIndex = 0;
+      const selection = window.getSelection();
+      
+      if (selection && selection.toString().trim().length > 0) {
+          const selectedText = selection.toString().trim();
+          const currentContent = rawChapters[actualChapterIndex]?.content || '';
+          
+          const idx = currentContent.indexOf(selectedText);
+          if (idx !== -1) {
+              const textBefore = currentContent.substring(0, idx);
+              const wordsBefore = textBefore.split(/\s+/).filter(w => w.length > 0).length;
+              startIndex = wordsBefore;
+          }
+      } else {
+           const currentChapter = rawChapters[actualChapterIndex];
+           if (currentChapter && currentAnchorRef.current) {
+               const anchorId = currentAnchorRef.current;
+               
+               if (anchorId.startsWith(`chapter-${actualChapterIndex}-`)) {
+                   if (anchorId.includes('-title')) {
+                       startIndex = 0;
+                   } else if (anchorId.includes('-p-')) {
+                       const parts = anchorId.split('-p-');
+                       if (parts.length === 2) {
+                           const pIdx = parseInt(parts[1], 10);
+                           
+                           const paragraphs = currentChapter.content.split('\n\n').filter(p => p.trim());
+                           let wordsCount = 0;
+                           
+                           for (let i = 0; i < pIdx && i < paragraphs.length; i++) {
+                               const pWords = paragraphs[i].split(/\s+/).filter(w => w.length > 0).length;
+                               wordsCount += pWords;
+                           }
+                           startIndex = wordsCount;
+                       }
+                   }
+               }
+           }
+      }
+
+      // Обновляем индекс главы синхронно
+      setCurrentChapterIndex(actualChapterIndex);
       setSpritzInitialIndex(startIndex);
-      setSpritzSelectionMode(false);
       setSpritzMode(true);
   };
 
@@ -355,6 +369,27 @@ const Reader = ({ darkMode, setDarkMode }) => {
       setFontSize(prev => Math.max(14, Math.min(32, prev + delta)));
   };
 
+  const handleGoToPage = () => {
+      const pageNum = parseInt(pageInputValue, 10);
+      if (!isNaN(pageNum) && pageNum >= 1 && pageNum <= totalPages) {
+          changePage(pageNum - 1);
+          setShowPageModal(false);
+          setPageInputValue('');
+      }
+  };
+
+  const handleGoToChapter = (chapterIndex) => {
+      const chapterInfo = chaptersInfo.find(ch => ch.index === chapterIndex);
+      if (chapterInfo) {
+          const el = document.getElementById(chapterInfo.id);
+          if (el) {
+              const page = Math.floor(el.offsetLeft / window.innerWidth);
+              changePage(page);
+              setShowTocModal(false);
+          }
+      }
+  };
+
   if (loading) {
      return <div style={{ height: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: theme.bg, color: theme.textSecondary }}>Загрузка...</div>;
   }
@@ -368,28 +403,15 @@ const Reader = ({ darkMode, setDarkMode }) => {
         overflow: 'hidden',
         position: 'relative'
       }}
-      onClick={() => !spritzSelectionMode && setShowControls(!showControls)}
+      onClick={() => setShowControls(!showControls)}
     >
-      {/* Стили для подсветки параграфов в режиме выбора */}
-      {spritzSelectionMode && (
-          <style>{`
-              .reader-paragraph:hover,
-              .reader-header:hover,
-              .reader-subheader:hover {
-                  background: ${darkMode ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.05)'};
-                  cursor: pointer;
-                  border-radius: 4px;
-                  transition: background 0.2s ease;
-              }
-          `}</style>
-      )}
       {/* Header */}
       <div style={{
           position: 'fixed', top: 0, left: 0, right: 0,
           padding: '16px', background: theme.bg,
           display: 'flex', justifyContent: 'space-between', alignItems: 'center',
           zIndex: 50,
-          transform: (showControls && !spritzSelectionMode) ? 'translateY(0)' : 'translateY(-100%)',
+          transform: showControls ? 'translateY(0)' : 'translateY(-100%)',
           transition: 'transform 0.3s ease',
           boxShadow: '0 2px 8px rgba(0,0,0,0.1)'
       }}>
@@ -416,9 +438,9 @@ const Reader = ({ darkMode, setDarkMode }) => {
           position: 'fixed', top: '80px', left: 0, right: 0,
           display: 'flex', justifyContent: 'center', gap: '12px',
           zIndex: 49,
-          transform: (showControls && !spritzSelectionMode) ? 'translateY(0)' : 'translateY(-200%)',
-          opacity: (showControls && !spritzSelectionMode) ? 1 : 0,
-          pointerEvents: (showControls && !spritzSelectionMode) ? 'auto' : 'none',
+          transform: showControls ? 'translateY(0)' : 'translateY(-200%)',
+          opacity: showControls ? 1 : 0,
+          pointerEvents: showControls ? 'auto' : 'none',
           transition: 'transform 0.3s ease, opacity 0.2s ease'
       }}>
           <div style={{ background: theme.surface1, padding: '8px 16px', borderRadius: '24px', display: 'flex', gap: '16px', alignItems: 'center', boxShadow: '0 4px 12px rgba(0,0,0,0.15)' }} onClick={e => e.stopPropagation()}>
@@ -426,7 +448,15 @@ const Reader = ({ darkMode, setDarkMode }) => {
               <span style={{ fontSize: '14px', color: theme.textSecondary, minWidth: '24px', textAlign: 'center' }}>{fontSize}</span>
               <button onClick={() => changeFontSize(1)} style={{ background: 'none', border: 'none', fontSize: '22px', cursor: 'pointer', color: theme.textPrimary }}>A+</button>
               <div style={{ width: 1, height: 20, background: theme.divider }}></div>
-              <button onClick={() => startSpritz()} style={{ background: 'none', border: 'none', cursor: 'pointer', color: theme.textPrimary }}>
+              <button onClick={() => { setShowTocModal(true); setShowControls(false); }} style={{ background: 'none', border: 'none', cursor: 'pointer', color: theme.textPrimary }} title="Оглавление">
+                  <List size={20} />
+              </button>
+              <div style={{ width: 1, height: 20, background: theme.divider }}></div>
+              <button onClick={() => { setShowPageModal(true); setShowControls(false); }} style={{ background: 'none', border: 'none', cursor: 'pointer', color: theme.textPrimary }} title="Перейти на страницу">
+                  <Hash size={20} />
+              </button>
+              <div style={{ width: 1, height: 20, background: theme.divider }}></div>
+              <button onClick={() => startSpritz()} style={{ background: 'none', border: 'none', cursor: 'pointer', color: theme.textPrimary }} title="Spritz чтение">
                   <Zap size={20} />
               </button>
               <div style={{ width: 1, height: 20, background: theme.divider }}></div>
@@ -447,7 +477,6 @@ const Reader = ({ darkMode, setDarkMode }) => {
       }}>
           <div 
              ref={contentRef}
-             onClick={handleParagraphClick}
              style={{
                  height: '100%',
                  width: '100%',
@@ -461,20 +490,15 @@ const Reader = ({ darkMode, setDarkMode }) => {
                  transform: `translateX(calc(-${currentPage} * 100vw))`,
                  transition: 'transform 0.3s cubic-bezier(0.25, 1, 0.5, 1)',
                  padding: '0 16px',
-                 boxSizing: 'border-box',
-                 cursor: spritzSelectionMode ? 'pointer' : 'default'
+                 boxSizing: 'border-box'
              }}
              dangerouslySetInnerHTML={{ __html: fullContent }}
           />
       </div>
 
       {/* Click Zones */}
-      {!spritzSelectionMode && (
-          <>
-              <div style={{ position: 'absolute', top: 70, bottom: 70, left: 0, width: '30%', zIndex: 10 }} onClick={(e) => { e.stopPropagation(); changePage(currentPage - 1); }} />
-              <div style={{ position: 'absolute', top: 70, bottom: 70, right: 0, width: '30%', zIndex: 10 }} onClick={(e) => { e.stopPropagation(); changePage(currentPage + 1); }} />
-          </>
-      )}
+      <div style={{ position: 'absolute', top: 70, bottom: 70, left: 0, width: '30%', zIndex: 10 }} onClick={(e) => { e.stopPropagation(); changePage(currentPage - 1); }} />
+      <div style={{ position: 'absolute', top: 70, bottom: 70, right: 0, width: '30%', zIndex: 10 }} onClick={(e) => { e.stopPropagation(); changePage(currentPage + 1); }} />
 
       {/* Footer */}
       <div style={{
@@ -482,7 +506,7 @@ const Reader = ({ darkMode, setDarkMode }) => {
           padding: '16px', background: theme.bg,
           display: 'flex', justifyContent: 'space-between', alignItems: 'center',
           zIndex: 50,
-          transform: (showControls && !spritzSelectionMode) ? 'translateY(0)' : 'translateY(100%)',
+          transform: showControls ? 'translateY(0)' : 'translateY(100%)',
           transition: 'transform 0.3s ease',
           boxShadow: '0 -2px 8px rgba(0,0,0,0.1)'
       }}>
@@ -519,66 +543,6 @@ const Reader = ({ darkMode, setDarkMode }) => {
               <ChevronRight size={24} color={theme.textPrimary} />
           </button>
       </div>
-
-      {/* Spritz Selection Mode Overlay */}
-      {spritzSelectionMode && (
-          <div style={{
-              position: 'fixed',
-              top: 0,
-              left: 0,
-              right: 0,
-              bottom: 0,
-              background: 'rgba(0, 0, 0, 0.7)',
-              zIndex: 90,
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              pointerEvents: 'none'
-          }}>
-              <div style={{
-                  background: theme.surface1,
-                  padding: '24px 32px',
-                  borderRadius: '16px',
-                  maxWidth: '90%',
-                  textAlign: 'center',
-                  boxShadow: '0 8px 32px rgba(0,0,0,0.3)'
-              }}>
-                  <div style={{
-                      fontSize: '20px',
-                      fontWeight: 'bold',
-                      color: theme.textPrimary,
-                      marginBottom: '12px'
-                  }}>
-                      Выберите начало
-                  </div>
-                  <div style={{
-                      fontSize: '14px',
-                      color: theme.textSecondary,
-                      marginBottom: '16px'
-                  }}>
-                      Нажмите на параграф или заголовок,<br />с которого хотите начать чтение
-                  </div>
-                  <button
-                      onClick={(e) => {
-                          e.stopPropagation();
-                          setSpritzSelectionMode(false);
-                      }}
-                      style={{
-                          padding: '8px 24px',
-                          borderRadius: '8px',
-                          border: 'none',
-                          background: theme.surface2,
-                          color: theme.textPrimary,
-                          cursor: 'pointer',
-                          fontSize: '14px',
-                          pointerEvents: 'auto'
-                      }}
-                  >
-                      Отмена
-                  </button>
-              </div>
-          </div>
-      )}
 
       {/* Spritz Reader Overlay */}
       {spritzMode && rawChapters.length > 0 && (
@@ -618,6 +582,152 @@ const Reader = ({ darkMode, setDarkMode }) => {
                           background: theme.accent, color: '#fff', cursor: 'pointer'
                       }}>
                           Далее
+                      </button>
+                  </div>
+              </div>
+          </div>
+      )}
+
+      {/* Go To Page Modal */}
+      {showPageModal && (
+          <div 
+              style={{
+                  position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
+                  background: 'rgba(0,0,0,0.8)', zIndex: 200,
+                  display: 'flex', alignItems: 'center', justifyContent: 'center'
+              }}
+              onClick={() => { setShowPageModal(false); setPageInputValue(''); }}
+          >
+              <div 
+                  style={{
+                      background: theme.surface1, padding: '24px', borderRadius: '12px',
+                      maxWidth: '320px', width: '90%', color: theme.textPrimary
+                  }}
+                  onClick={e => e.stopPropagation()}
+              >
+                  <h3 style={{ marginBottom: '16px', textAlign: 'center' }}>Перейти на страницу</h3>
+                  <div style={{ marginBottom: '20px' }}>
+                      <input 
+                          type="number"
+                          min="1"
+                          max={totalPages}
+                          value={pageInputValue}
+                          onChange={e => setPageInputValue(e.target.value)}
+                          onKeyDown={e => { if (e.key === 'Enter') handleGoToPage(); }}
+                          placeholder={`1 - ${totalPages}`}
+                          autoFocus
+                          style={{
+                              width: '100%', padding: '12px', borderRadius: '8px',
+                              border: `1px solid ${theme.divider}`, background: theme.surface2,
+                              color: theme.textPrimary, fontSize: '16px', textAlign: 'center',
+                              boxSizing: 'border-box'
+                          }}
+                      />
+                  </div>
+                  <div style={{ display: 'flex', gap: '12px' }}>
+                      <button 
+                          onClick={() => { setShowPageModal(false); setPageInputValue(''); }}
+                          style={{
+                              flex: 1, padding: '10px', borderRadius: '8px', 
+                              border: `1px solid ${theme.divider}`,
+                              background: 'transparent', color: theme.textPrimary, cursor: 'pointer',
+                              fontSize: '14px'
+                          }}
+                      >
+                          Отмена
+                      </button>
+                      <button 
+                          onClick={handleGoToPage}
+                          style={{
+                              flex: 1, padding: '10px', borderRadius: '8px', border: 'none',
+                              background: theme.accent, color: '#fff', cursor: 'pointer',
+                              fontSize: '14px', fontWeight: '500'
+                          }}
+                      >
+                          Перейти
+                      </button>
+                  </div>
+              </div>
+          </div>
+      )}
+
+      {/* Table of Contents Modal */}
+      {showTocModal && (
+          <div 
+              style={{
+                  position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
+                  background: 'rgba(0,0,0,0.8)', zIndex: 200,
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  padding: '20px'
+              }}
+              onClick={() => setShowTocModal(false)}
+          >
+              <div 
+                  style={{
+                      background: theme.surface1, borderRadius: '12px',
+                      maxWidth: '500px', width: '100%', maxHeight: '80vh',
+                      display: 'flex', flexDirection: 'column', color: theme.textPrimary
+                  }}
+                  onClick={e => e.stopPropagation()}
+              >
+                  <div style={{ padding: '20px 24px', borderBottom: `1px solid ${theme.divider}` }}>
+                      <h3 style={{ margin: 0, fontSize: '18px', fontWeight: '600' }}>Оглавление</h3>
+                  </div>
+                  <div style={{ 
+                      flex: 1, overflowY: 'auto', padding: '8px 0'
+                  }}>
+                      {chaptersInfo.map((chapter) => (
+                          <button
+                              key={chapter.id}
+                              onClick={() => handleGoToChapter(chapter.index)}
+                              style={{
+                                  width: '100%', padding: '12px 24px', border: 'none',
+                                  background: chapter.index === currentChapterIndex ? theme.surface2 : 'transparent',
+                                  color: chapter.index === currentChapterIndex ? theme.accent : theme.textPrimary,
+                                  textAlign: 'left', cursor: 'pointer', fontSize: '15px',
+                                  transition: 'background 0.2s',
+                                  display: 'flex', alignItems: 'center', gap: '12px',
+                                  borderLeft: chapter.index === currentChapterIndex ? `3px solid ${theme.accent}` : '3px solid transparent'
+                              }}
+                              onMouseEnter={e => { 
+                                  if (chapter.index !== currentChapterIndex) {
+                                      e.currentTarget.style.background = theme.surface2;
+                                      e.currentTarget.style.opacity = '0.8';
+                                  }
+                              }}
+                              onMouseLeave={e => { 
+                                  if (chapter.index !== currentChapterIndex) {
+                                      e.currentTarget.style.background = 'transparent';
+                                      e.currentTarget.style.opacity = '1';
+                                  }
+                              }}
+                          >
+                              <span style={{ 
+                                  color: theme.textTertiary, fontSize: '13px', minWidth: '32px',
+                                  fontWeight: chapter.index === currentChapterIndex ? '600' : '400'
+                              }}>
+                                  {chapter.index + 1}
+                              </span>
+                              <span style={{ 
+                                  flex: 1,
+                                  fontWeight: chapter.index === currentChapterIndex ? '500' : '400'
+                              }}>
+                                  {chapter.title}
+                              </span>
+                          </button>
+                      ))}
+                  </div>
+                  <div style={{ padding: '16px 24px', borderTop: `1px solid ${theme.divider}` }}>
+                      <button 
+                          onClick={() => setShowTocModal(false)}
+                          style={{
+                              width: '100%', padding: '10px', borderRadius: '8px',
+                              border: `1px solid ${theme.divider}`,
+                              background: 'transparent', color: theme.textPrimary,
+                              cursor: 'pointer', fontSize: '14px'
+                          }}
+                      >
+                          Закрыть
                       </button>
                   </div>
               </div>
