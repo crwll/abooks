@@ -19,7 +19,6 @@ const BottomNav = ({ theme, darkMode }) => {
     <div
       style={{
         position: 'fixed',
-        bottom: 'max(16px, env(safe-area-inset-bottom, 16px))',
         bottom: 'max(16px, var(--tg-safe-area-inset-bottom, 16px))',
         left: '16px',
         right: '16px',

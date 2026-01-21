@@ -397,7 +397,6 @@ const Reader = ({ darkMode, setDarkMode }) => {
   return (
     <div 
       style={{ 
-        height: '100vh', 
         height: 'var(--tg-viewport-height, 100vh)',
         width: '100vw', 
         background: theme.bg, 
@@ -474,8 +473,8 @@ const Reader = ({ darkMode, setDarkMode }) => {
       {/* Content Area */}
       <div style={{ 
           position: 'absolute',
-          top: 'calc(70px + var(--tg-content-safe-area-inset-top, var(--tg-safe-area-inset-top, env(safe-area-inset-top, 0px))))', 
-          bottom: 'calc(70px + var(--tg-content-safe-area-inset-bottom, var(--tg-safe-area-inset-bottom, env(safe-area-inset-bottom, 0px))))',
+          top: 'calc(60px + var(--tg-content-safe-area-inset-top, var(--tg-safe-area-inset-top, env(safe-area-inset-top, 0px))))', 
+          bottom: 'calc(60px + var(--tg-content-safe-area-inset-bottom, var(--tg-safe-area-inset-bottom, env(safe-area-inset-bottom, 0px))))',
           left: 0,
           right: 0,
           overflow: 'hidden' 
@@ -504,14 +503,14 @@ const Reader = ({ darkMode, setDarkMode }) => {
       {/* Click Zones */}
       <div style={{ 
         position: 'absolute', 
-        top: 'calc(70px + var(--tg-content-safe-area-inset-top, var(--tg-safe-area-inset-top, env(safe-area-inset-top, 0px))))', 
-        bottom: 'calc(70px + var(--tg-content-safe-area-inset-bottom, var(--tg-safe-area-inset-bottom, env(safe-area-inset-bottom, 0px))))', 
+        top: 'calc(60px + var(--tg-content-safe-area-inset-top, var(--tg-safe-area-inset-top, env(safe-area-inset-top, 0px))))', 
+        bottom: 'calc(60px + var(--tg-content-safe-area-inset-bottom, var(--tg-safe-area-inset-bottom, env(safe-area-inset-bottom, 0px))))', 
         left: 0, width: '30%', zIndex: 10 
       }} onClick={(e) => { e.stopPropagation(); changePage(currentPage - 1); }} />
       <div style={{ 
         position: 'absolute', 
-        top: 'calc(70px + var(--tg-content-safe-area-inset-top, var(--tg-safe-area-inset-top, env(safe-area-inset-top, 0px))))', 
-        bottom: 'calc(70px + var(--tg-content-safe-area-inset-bottom, var(--tg-safe-area-inset-bottom, env(safe-area-inset-bottom, 0px))))', 
+        top: 'calc(60px + var(--tg-content-safe-area-inset-top, var(--tg-safe-area-inset-top, env(safe-area-inset-top, 0px))))', 
+        bottom: 'calc(60px + var(--tg-content-safe-area-inset-bottom, var(--tg-safe-area-inset-bottom, env(safe-area-inset-bottom, 0px))))', 
         right: 0, width: '30%', zIndex: 10 
       }} onClick={(e) => { e.stopPropagation(); changePage(currentPage + 1); }} />
 

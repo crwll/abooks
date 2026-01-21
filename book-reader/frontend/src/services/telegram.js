@@ -47,9 +47,16 @@ export const initTelegram = () => {
       const contentSafeAreaTop = tg.contentSafeAreaInset?.top || safeAreaTop;
       const contentSafeAreaBottom = tg.contentSafeAreaInset?.bottom || safeAreaBottom;
       
+      // Определяем ориентацию
+      const isLandscape = window.innerWidth > window.innerHeight;
+      
       // Добавляем дополнительный отступ для заголовка Telegram Mini App
-      // Обычно заголовок занимает ~56px на iOS и ~48px на Android
-      const headerHeight = tg.platform === 'ios' ? 56 : 48;
+      // В портретном режиме: ~56px на iOS, ~48px на Android
+      // В горизонтальном: меньше, так как нет челки и заголовок компактнее
+      const headerHeight = isLandscape 
+        ? (tg.platform === 'ios' ? 24 : 20)
+        : (tg.platform === 'ios' ? 56 : 48);
+      
       const totalTopInset = Math.max(contentSafeAreaTop, safeAreaTop) + headerHeight;
       
       document.documentElement.style.setProperty('--tg-viewport-height', `${tg.viewportHeight}px`);
@@ -58,9 +65,11 @@ export const initTelegram = () => {
       document.documentElement.style.setProperty('--tg-safe-area-inset-bottom', `${safeAreaBottom}px`);
       document.documentElement.style.setProperty('--tg-content-safe-area-inset-top', `${totalTopInset}px`);
       document.documentElement.style.setProperty('--tg-content-safe-area-inset-bottom', `${contentSafeAreaBottom}px`);
+      document.documentElement.style.setProperty('--tg-is-landscape', isLandscape ? '1' : '0');
       
       console.log('Telegram viewport updated:', {
         platform: tg.platform,
+        orientation: isLandscape ? 'landscape' : 'portrait',
         viewportHeight: tg.viewportHeight,
         viewportStableHeight: tg.viewportStableHeight,
         safeAreaTop,

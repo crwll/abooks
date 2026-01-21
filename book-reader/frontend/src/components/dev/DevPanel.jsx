@@ -9,7 +9,10 @@ const DevPanel = () => {
   useEffect(() => {
     const updateSafeAreas = () => {
       const style = getComputedStyle(document.documentElement);
+      const isLandscape = window.innerWidth > window.innerHeight;
       setSafeAreas({
+        orientation: isLandscape ? 'Landscape' : 'Portrait',
+        screenSize: `${window.innerWidth}x${window.innerHeight}`,
         viewportHeight: style.getPropertyValue('--tg-viewport-height'),
         viewportStableHeight: style.getPropertyValue('--tg-viewport-stable-height'),
         safeAreaTop: style.getPropertyValue('--tg-safe-area-inset-top'),
@@ -21,7 +24,14 @@ const DevPanel = () => {
 
     updateSafeAreas();
     const interval = setInterval(updateSafeAreas, 1000);
-    return () => clearInterval(interval);
+    window.addEventListener('resize', updateSafeAreas);
+    window.addEventListener('orientationchange', updateSafeAreas);
+    
+    return () => {
+      clearInterval(interval);
+      window.removeEventListener('resize', updateSafeAreas);
+      window.removeEventListener('orientationchange', updateSafeAreas);
+    };
   }, []);
 
   if (!isDev) return null;
@@ -77,6 +87,10 @@ const DevPanel = () => {
             
             <p style={{ margin: '12px 0 4px 0', color: '#fff', fontWeight: '600' }}>API:</p>
             <p style={{ margin: '4px 0' }}>{import.meta.env.VITE_API_URL || 'localhost:8000'}</p>
+            
+            <p style={{ margin: '12px 0 4px 0', color: '#fff', fontWeight: '600' }}>Screen:</p>
+            <p style={{ margin: '4px 0', color: '#dfff00' }}>{safeAreas.orientation || 'N/A'}</p>
+            <p style={{ margin: '4px 0' }}>{safeAreas.screenSize || 'N/A'}</p>
             
             <p style={{ margin: '12px 0 4px 0', color: '#fff', fontWeight: '600' }}>Viewport:</p>
             <p style={{ margin: '4px 0' }}>Height: {safeAreas.viewportHeight || 'N/A'}</p>

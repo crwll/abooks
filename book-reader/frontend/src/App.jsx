@@ -30,7 +30,6 @@ function App() {
   return (
     <div 
       style={{
-        minHeight: '100vh',
         minHeight: 'var(--tg-viewport-height, 100vh)',
         background: theme.bg,
         color: theme.textPrimary,

@@ -107,19 +107,19 @@ const SpritzReader = ({ content, title, darkMode, onComplete, onClose, initialIn
       <div 
         onClick={(e) => e.stopPropagation()}
         style={{ 
-        position: 'absolute', 
+        position: 'fixed', 
         top: 0, 
         left: 0, 
         right: 0, 
-        padding: '16px',
+        padding: '12px 16px',
         paddingTop: 'calc(var(--tg-content-safe-area-inset-top, var(--tg-safe-area-inset-top, env(safe-area-inset-top, 0px))) + 8px)',
         display: 'flex', 
         justifyContent: 'space-between', 
         alignItems: 'center',
         zIndex: 110,
         opacity: !isPlaying ? 1 : 0,
-        pointerEvents: !isPlaying ? 'auto' : 'none',
-        transition: 'opacity 0.3s ease'
+        transition: 'opacity 0.3s ease',
+        background: `linear-gradient(to bottom, ${theme.bg} 80%, transparent)`,
       }}>
         <button 
           onClick={handleClose} 
@@ -133,7 +133,9 @@ const SpritzReader = ({ content, title, darkMode, onComplete, onClose, initialIn
             alignItems: 'center', 
             justifyContent: 'center', 
             cursor: 'pointer',
-            color: theme.textPrimary 
+            color: theme.textPrimary,
+            pointerEvents: 'auto',
+            zIndex: 111,
           }}
         >
           <X size={20} />
@@ -202,11 +204,7 @@ const SpritzReader = ({ content, title, darkMode, onComplete, onClose, initialIn
              
              {/* ORP Character - colored */}
              <div style={{
-                 color: 'red', // Fixed red color as per example or stick to theme.accent? User example had 'color: red'.
-                 // Let's use red for high contrast as requested in example style logic, but theme.accent is safer for dark mode.
-                 // Example used: nth-child(2) { color: red }
-                 // I'll stick to theme.accent to respect theme, but ensure it's visible.
-                 color: theme.accent, 
+                 color: theme.accent,
              }}>
                  {currentWord[orp]}
              </div>

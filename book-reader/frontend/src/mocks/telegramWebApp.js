@@ -79,13 +79,24 @@ window.Telegram = {
   WebApp: mockWebApp
 };
 
-// Обновляем viewport при изменении размера окна
-window.addEventListener('resize', () => {
+// Обновляем viewport при изменении размера окна и ориентации
+const updateMockViewport = () => {
   mockWebApp.viewportHeight = window.innerHeight;
   mockWebApp.viewportStableHeight = window.innerHeight;
+  
+  // В горизонтальной ориентации убираем челку
+  const isLandscape = window.innerWidth > window.innerHeight;
+  mockWebApp.safeAreaInset.top = isLandscape ? 0 : 47;
+  mockWebApp.safeAreaInset.bottom = isLandscape ? 0 : 34;
+  mockWebApp.contentSafeAreaInset.top = isLandscape ? 0 : 47;
+  mockWebApp.contentSafeAreaInset.bottom = isLandscape ? 0 : 34;
+  
   if (mockWebApp._eventHandlers['viewportChanged']) {
     mockWebApp._eventHandlers['viewportChanged'].forEach(handler => handler());
   }
-});
+};
+
+window.addEventListener('resize', updateMockViewport);
+window.addEventListener('orientationchange', updateMockViewport);
 
 console.log('%c[Telegram WebApp Mock]%c Loaded for development', 'color: #dfff00; font-weight: bold', 'color: inherit');
