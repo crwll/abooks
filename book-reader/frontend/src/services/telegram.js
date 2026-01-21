@@ -47,20 +47,27 @@ export const initTelegram = () => {
       const contentSafeAreaTop = tg.contentSafeAreaInset?.top || safeAreaTop;
       const contentSafeAreaBottom = tg.contentSafeAreaInset?.bottom || safeAreaBottom;
       
+      // Добавляем дополнительный отступ для заголовка Telegram Mini App
+      // Обычно заголовок занимает ~56px на iOS и ~48px на Android
+      const headerHeight = tg.platform === 'ios' ? 56 : 48;
+      const totalTopInset = Math.max(contentSafeAreaTop, safeAreaTop) + headerHeight;
+      
       document.documentElement.style.setProperty('--tg-viewport-height', `${tg.viewportHeight}px`);
       document.documentElement.style.setProperty('--tg-viewport-stable-height', `${tg.viewportStableHeight}px`);
       document.documentElement.style.setProperty('--tg-safe-area-inset-top', `${safeAreaTop}px`);
       document.documentElement.style.setProperty('--tg-safe-area-inset-bottom', `${safeAreaBottom}px`);
-      document.documentElement.style.setProperty('--tg-content-safe-area-inset-top', `${contentSafeAreaTop}px`);
+      document.documentElement.style.setProperty('--tg-content-safe-area-inset-top', `${totalTopInset}px`);
       document.documentElement.style.setProperty('--tg-content-safe-area-inset-bottom', `${contentSafeAreaBottom}px`);
       
       console.log('Telegram viewport updated:', {
+        platform: tg.platform,
         viewportHeight: tg.viewportHeight,
         viewportStableHeight: tg.viewportStableHeight,
         safeAreaTop,
         safeAreaBottom,
-        contentSafeAreaTop,
+        contentSafeAreaTop: totalTopInset,
         contentSafeAreaBottom,
+        headerHeight,
       });
     };
     

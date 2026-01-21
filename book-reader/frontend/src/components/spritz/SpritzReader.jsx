@@ -112,7 +112,7 @@ const SpritzReader = ({ content, title, darkMode, onComplete, onClose, initialIn
         left: 0, 
         right: 0, 
         padding: '16px',
-        paddingTop: 'max(16px, calc(var(--tg-content-safe-area-inset-top, var(--tg-safe-area-inset-top, env(safe-area-inset-top, 0px))) + 8px))',
+        paddingTop: 'calc(var(--tg-content-safe-area-inset-top, var(--tg-safe-area-inset-top, env(safe-area-inset-top, 0px))) + 8px)',
         display: 'flex', 
         justifyContent: 'space-between', 
         alignItems: 'center',

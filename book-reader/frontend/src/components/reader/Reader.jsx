@@ -410,7 +410,7 @@ const Reader = ({ darkMode, setDarkMode }) => {
       <div style={{
           position: 'fixed', top: 0, left: 0, right: 0,
           padding: '16px',
-          paddingTop: 'max(16px, calc(var(--tg-content-safe-area-inset-top, var(--tg-safe-area-inset-top, env(safe-area-inset-top, 0px))) + 8px))',
+          paddingTop: 'calc(var(--tg-content-safe-area-inset-top, var(--tg-safe-area-inset-top, env(safe-area-inset-top, 0px))) + 8px)',
           background: theme.bg,
           display: 'flex', justifyContent: 'space-between', alignItems: 'center',
           zIndex: 50,

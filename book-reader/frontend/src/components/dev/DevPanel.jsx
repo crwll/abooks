@@ -1,9 +1,28 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Settings } from 'lucide-react';
 
 const DevPanel = () => {
   const [isOpen, setIsOpen] = useState(false);
+  const [safeAreas, setSafeAreas] = useState({});
   const isDev = import.meta.env.VITE_ENV === 'development';
+
+  useEffect(() => {
+    const updateSafeAreas = () => {
+      const style = getComputedStyle(document.documentElement);
+      setSafeAreas({
+        viewportHeight: style.getPropertyValue('--tg-viewport-height'),
+        viewportStableHeight: style.getPropertyValue('--tg-viewport-stable-height'),
+        safeAreaTop: style.getPropertyValue('--tg-safe-area-inset-top'),
+        safeAreaBottom: style.getPropertyValue('--tg-safe-area-inset-bottom'),
+        contentSafeAreaTop: style.getPropertyValue('--tg-content-safe-area-inset-top'),
+        contentSafeAreaBottom: style.getPropertyValue('--tg-content-safe-area-inset-bottom'),
+      });
+    };
+
+    updateSafeAreas();
+    const interval = setInterval(updateSafeAreas, 1000);
+    return () => clearInterval(interval);
+  }, []);
 
   if (!isDev) return null;
 
@@ -40,7 +59,10 @@ const DevPanel = () => {
             background: '#1c1c1e',
             borderRadius: '16px',
             padding: '16px',
-            minWidth: '250px',
+            minWidth: '280px',
+            maxWidth: '90vw',
+            maxHeight: '70vh',
+            overflow: 'auto',
             boxShadow: '0 8px 24px rgba(0,0,0,0.4)',
             zIndex: 9999,
           }}
@@ -48,12 +70,25 @@ const DevPanel = () => {
           <h3 style={{ color: '#dfff00', margin: '0 0 12px 0', fontSize: '14px', fontWeight: '600' }}>
             DEV MODE
           </h3>
-          <div style={{ color: '#8e8e93', fontSize: '12px', lineHeight: '1.5' }}>
+          <div style={{ color: '#8e8e93', fontSize: '11px', lineHeight: '1.5' }}>
             <p style={{ margin: '4px 0' }}>User ID: 123456789</p>
             <p style={{ margin: '4px 0' }}>Username: dev_user</p>
             <p style={{ margin: '4px 0' }}>Auth: Dev Bypass</p>
+            
             <p style={{ margin: '12px 0 4px 0', color: '#fff', fontWeight: '600' }}>API:</p>
             <p style={{ margin: '4px 0' }}>{import.meta.env.VITE_API_URL || 'localhost:8000'}</p>
+            
+            <p style={{ margin: '12px 0 4px 0', color: '#fff', fontWeight: '600' }}>Viewport:</p>
+            <p style={{ margin: '4px 0' }}>Height: {safeAreas.viewportHeight || 'N/A'}</p>
+            <p style={{ margin: '4px 0' }}>Stable: {safeAreas.viewportStableHeight || 'N/A'}</p>
+            
+            <p style={{ margin: '12px 0 4px 0', color: '#fff', fontWeight: '600' }}>Safe Areas:</p>
+            <p style={{ margin: '4px 0' }}>Top: {safeAreas.safeAreaTop || '0px'}</p>
+            <p style={{ margin: '4px 0' }}>Bottom: {safeAreas.safeAreaBottom || '0px'}</p>
+            
+            <p style={{ margin: '12px 0 4px 0', color: '#fff', fontWeight: '600' }}>Content Safe:</p>
+            <p style={{ margin: '4px 0', color: '#dfff00' }}>Top: {safeAreas.contentSafeAreaTop || '0px'}</p>
+            <p style={{ margin: '4px 0', color: '#dfff00' }}>Bottom: {safeAreas.contentSafeAreaBottom || '0px'}</p>
           </div>
         </div>
       )}

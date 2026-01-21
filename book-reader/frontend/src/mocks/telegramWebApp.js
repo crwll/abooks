@@ -41,6 +41,7 @@ const mockWebApp = {
     secondary_bg_color: '#1c1c1e',
   },
   colorScheme: 'dark',
+  platform: 'ios', // ios, android, web
   isExpanded: true,
   viewportHeight: window.innerHeight,
   viewportStableHeight: window.innerHeight,
@@ -51,7 +52,7 @@ const mockWebApp = {
     right: 0
   },
   contentSafeAreaInset: {
-    top: 47,
+    top: 47, // Будет пересчитано в initTelegram с учетом заголовка
     bottom: 34,
     left: 0,
     right: 0
