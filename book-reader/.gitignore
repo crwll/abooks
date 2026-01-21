@@ -64,9 +64,9 @@ build/
 *.db
 *.sqlite
 *.sqlite3
-.db-wal
-.db-journal
-.db-shm
+*.db-wal
+*.db-journal
+*.db-shm
 
 # Data
 data/books/*
